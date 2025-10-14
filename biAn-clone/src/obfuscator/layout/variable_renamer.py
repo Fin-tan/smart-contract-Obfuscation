@@ -1,20 +1,22 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Variable Renamer for Solidity Smart Contracts
-==============================================
+Variable Renamer for Solidity Smart Contracts (AST-based)
+==========================================================
 
 Obfuscate variable names, function names, and contract names
-by replacing them with hash values.
+by replacing them with hash values using AST parsing.
 
 Usage:
     python variable_renamer.py input.sol output.sol
     python variable_renamer.py input.sol output.sol --mapping mapping.json
     python variable_renamer.py input.sol output.sol --algorithm sha256
-    python variable_renamer.py input.sol output.sol --prefix VAR
+
+Requirements:
+    pip install py-solc-x
 
 Author: Smart Contract Obfuscator Team
-Version: 1.0.0
+Version: 2.0.0 (AST-based)
 """
 
 import sys
@@ -23,23 +25,212 @@ import re
 import hashlib
 import json
 import argparse
-from typing import Set, Dict, Optional
+from typing import Set, Dict, Optional, List, Tuple
 from pathlib import Path
+
+# Import Solidity compiler
+try:
+    import solcx
+    from solcx import compile_source, compile_files, install_solc, set_solc_version
+except ImportError:
+    print("Error: py-solc-x not installed")
+    print("Please install: pip install py-solc-x")
+    sys.exit(1)
 
 
 # ============================================
-# MAIN CLASS
+# AST PARSER CLASS
+# ============================================
+
+class SolidityASTParser:
+    """
+    Parse Solidity source code and extract identifiers using AST
+    """
+    
+    def __init__(self, solc_version: str = '0.8.30'):
+        """
+        Initialize AST Parser
+        
+        Args:
+            solc_version: Solidity compiler version
+        """
+        self.solc_version = solc_version
+        self._setup_compiler()
+    
+    def _setup_compiler(self):
+        """Setup Solidity compiler"""
+        try:
+            # Check if version is installed
+            installed_versions = solcx.get_installed_solc_versions()
+            
+            if self.solc_version not in [str(v) for v in installed_versions]:
+                print(f"Installing Solidity compiler {self.solc_version}...")
+                install_solc(self.solc_version)
+                print(f"  ✓ Installed")
+            
+            set_solc_version(self.solc_version)
+            
+        except Exception as e:
+            print(f"Warning: Could not setup Solidity compiler: {e}")
+            print("Will attempt to use default compiler")
+    
+    def compile_to_ast(self, source_code: str, file_path: str = None) -> Dict:
+        """
+        Compile Solidity source to AST
+        
+        Args:
+            source_code: Solidity source code
+            file_path: Optional file path (for better error messages)
+            
+        Returns:
+            AST dictionary
+        """
+        try:
+            if file_path and os.path.exists(file_path):
+                # Compile from file
+                compiled = compile_files(
+                    [file_path],
+                    output_values=['ast'],
+                    solc_version=self.solc_version
+                )
+                contract_name = list(compiled.keys())[0]
+                ast = compiled[contract_name]['ast']
+            else:
+                # Compile from source
+                compiled = compile_source(
+                    source_code,
+                    output_values=['ast'],
+                    solc_version=self.solc_version
+                )
+                contract_name = list(compiled.keys())[0]
+                ast = compiled[contract_name]['ast']
+            
+            if file_path:
+                ast_output_path=os.path.splitext(file_path)[0] + '_ast.json'
+            else:
+                ast_output_path='output_ast.json'
+
+            with open(ast_output_path, 'w', encoding='utf-8') as f:
+                json.dump(ast, f, indent=2)
+            print(f"AST saved to: {ast_output_path}")
+            return ast
+            
+        except Exception as e:
+            print(f"Error compiling source code: {e}")
+            return None
+    
+    def extract_identifiers(self, ast: Dict) -> Set[str]:
+        """
+        Extract all identifiers from AST
+        
+        Args:
+            ast: AST dictionary
+            
+        Returns:
+            Set of identifier names
+        """
+        if not ast:
+            return set()
+        
+        identifiers = set()
+        
+        # Traverse AST and collect identifiers
+        self._traverse_ast(ast, identifiers)
+        
+        return identifiers
+    
+    def _traverse_ast(self, node, identifiers: Set[str]):
+        """
+        Recursively traverse AST tree
+        
+        Args:
+            node: Current AST node
+            identifiers: Set to collect identifiers
+        """
+        if not isinstance(node, dict):
+            return
+        
+        node_type = node.get('nodeType')
+        
+        # Extract name from different node types
+        if node_type == 'ContractDefinition':
+            # Contract name
+            name = node.get('name')
+            if name:
+                identifiers.add(name)
+        
+        elif node_type == 'FunctionDefinition':
+            # Function name
+            name = node.get('name')
+            if name and name not in ['', 'constructor', 'fallback', 'receive']:
+                identifiers.add(name)
+        
+        elif node_type == 'VariableDeclaration':
+            # Variable name
+            name = node.get('name')
+            if name:
+                identifiers.add(name)
+        
+        elif node_type == 'Identifier':
+            # Identifier usage
+            name = node.get('name')
+            if name:
+                identifiers.add(name)
+        
+        elif node_type == 'ModifierDefinition':
+            # Modifier name
+            name = node.get('name')
+            if name:
+                identifiers.add(name)
+        
+        elif node_type == 'EventDefinition':
+            # Event name
+            name = node.get('name')
+            if name:
+                identifiers.add(name)
+        
+        elif node_type == 'StructDefinition':
+            # Struct name
+            name = node.get('name')
+            if name:
+                identifiers.add(name)
+        
+        elif node_type == 'EnumDefinition':
+            # Enum name
+            name = node.get('name')
+            if name:
+                identifiers.add(name)
+        
+        elif node_type == 'ErrorDefinition':
+            # Error name
+            name = node.get('name')
+            if name:
+                identifiers.add(name)
+        
+        # Recursively traverse children
+        for key, value in node.items():
+            if isinstance(value, dict):
+                self._traverse_ast(value, identifiers)
+            elif isinstance(value, list):
+                for item in value:
+                    if isinstance(item, dict):
+                        self._traverse_ast(item, identifiers)
+
+
+# ============================================
+# VARIABLE RENAMER CLASS
 # ============================================
 
 class VariableRenamer:
     """
-    Rename variables, functions, and contracts to hash values
+    Rename variables, functions, and contracts using AST
     """
     
     def __init__(self, 
                  hash_algorithm: str = 'sha1',
                  prefix: str = 'OX',
-                 hash_length: int = 38):
+                 hash_length: int = 38,
+                 solc_version: str = '0.8.30'):
         """
         Initialize Variable Renamer
         
@@ -47,6 +238,7 @@ class VariableRenamer:
             hash_algorithm: Hash algorithm ('sha1', 'sha256', 'md5')
             prefix: Prefix for obfuscated names
             hash_length: Length of hash suffix
+            solc_version: Solidity compiler version
         """
         self.hash_algorithm = hash_algorithm
         self.prefix = prefix
@@ -55,12 +247,16 @@ class VariableRenamer:
         # Mapping table
         self.identifier_map: Dict[str, str] = {}
         
+        # AST Parser
+        self.ast_parser = SolidityASTParser(solc_version)
+        
         # Solidity keywords to protect
         self.reserved_keywords = self._get_solidity_keywords()
     
     def _get_solidity_keywords(self) -> Set[str]:
         """
         Get all Solidity reserved keywords
+        Khong can doi 
         """
         return {
             # Types
@@ -101,10 +297,10 @@ class VariableRenamer:
             # Error handling
             'require', 'assert', 'revert',
             
-            # Built-in variables
+            # Built-in variables and members
             'msg', 'sender', 'value', 'data', 'sig', 'gas',
             'block', 'blockhash', 'coinbase', 'difficulty', 'gaslimit',
-            'number', 'timestamp', 'chainid', 'basefee',
+            'number', 'timestamp', 'chainid', 'basefee', 'prevrandao',
             'tx', 'gasprice', 'origin',
             'abi', 'decode', 'encode', 'encodePacked', 'encodeWithSelector',
             'encodeWithSignature', 'encodeCall',
@@ -113,19 +309,26 @@ class VariableRenamer:
             # Others
             'import', 'pragma', 'using', 'emit', 'delete', 'new', 'var',
             'true', 'false',
-            'wei', 'gwei', 'ether',
-            'seconds', 'minutes', 'hours', 'days', 'weeks',
+            'wei', 'gwei', 'ether', 'finney', 'szabo',  # finney and szabo deprecated
+            'seconds', 'minutes', 'hours', 'days', 'weeks',  # weeks deprecated
             
-            # Functions
+            # Global functions
             'addmod', 'mulmod', 'keccak256', 'sha256', 'ripemd160',
             'ecrecover', 'type',
             
-            # Members
+            # Type members
             'length', 'push', 'pop',
             'balance', 'transfer', 'send', 'call', 'delegatecall', 'staticcall',
             'code', 'codehash',
             'name', 'creationCode', 'runtimeCode',
             'interfaceId', 'selector', 'min', 'max',
+            
+            # Reserved for future use
+            'after', 'alias', 'apply', 'auto', 'byte', 'case', 'copyof', 'default',
+            'define', 'final', 'implements', 'in', 'inline', 'let', 'macro', 'match',
+            'mutable', 'null', 'of', 'partial', 'promise', 'reference', 'relocatable',
+            'sealed', 'sizeof', 'static', 'supports', 'switch', 'typedef', 'typeof',
+            'unchecked',
         }
     
     def generate_hash_name(self, original_name: str) -> str:
@@ -155,9 +358,40 @@ class VariableRenamer:
         # Add prefix
         return f"{self.prefix}{hash_part}"
     
-    def extract_identifiers(self, source_code: str) -> Set[str]:
+    def extract_identifiers_from_ast(self, source_code: str, file_path: str = None) -> Set[str]:
         """
-        Extract all identifiers from source code using regex
+        Extract identifiers using AST parsing
+        
+        Args:
+            source_code: Solidity source code
+            file_path: Optional file path
+            
+        Returns:
+            Set of identifier names
+        """
+        # Compile to AST
+        ast = self.ast_parser.compile_to_ast(source_code, file_path)
+        
+        if not ast:
+            print("Warning: Failed to parse AST, falling back to regex")
+            return self._extract_identifiers_regex(source_code)
+        else: 
+            print("  ✓ AST parsed successfully")
+        # Extract identifiers from AST
+        identifiers = self.ast_parser.extract_identifiers(ast)
+        
+        # Remove reserved keywords
+        identifiers -= self.reserved_keywords
+        
+        # Remove empty strings
+        identifiers.discard('')
+        identifiers.discard(None)
+        
+        return identifiers
+    
+    def _extract_identifiers_regex(self, source_code: str) -> Set[str]:
+        """
+        Fallback: Extract identifiers using regex (if AST parsing fails)
         
         Args:
             source_code: Solidity source code
@@ -165,33 +399,36 @@ class VariableRenamer:
         Returns:
             Set of identifier names
         """
-        # Pattern: match valid identifiers
-        # [a-zA-Z_] - must start with letter or underscore
-        # [a-zA-Z0-9_]* - followed by letters, numbers, or underscores
         pattern = r'\b[a-zA-Z_][a-zA-Z0-9_]*\b'
-        
         matches = re.findall(pattern, source_code)
         identifiers = set(matches)
         
-        # Remove reserved keywords
+        # Remove keywords
         identifiers -= self.reserved_keywords
         
         return identifiers
     
-    def obfuscate(self, source_code: str) -> str:
+    def obfuscate(self, source_code: str, file_path: str = None) -> str:
         """
-        Obfuscate all identifiers in source code
+        Obfuscate all identifiers in source code using AST
         
         Args:
             source_code: Original Solidity code
+            file_path: Optional file path
             
         Returns:
             Obfuscated code
         """
-        # Extract identifiers
-        identifiers = self.extract_identifiers(source_code)
+        print("Parsing source code with AST...")
+        
+        # Extract identifiers using AST
+        identifiers = self.extract_identifiers_from_ast(source_code, file_path)
         
         print(f"Found {len(identifiers)} identifiers to obfuscate")
+        
+        if len(identifiers) == 0:
+            print("Warning: No identifiers found!")
+            return source_code
         
         # Generate hash mappings
         for identifier in identifiers:
@@ -205,6 +442,7 @@ class VariableRenamer:
         total_replacements = 0
         
         # Replace each identifier
+        print("Replacing identifiers...")
         for original in sorted_identifiers:
             obfuscated = self.identifier_map[original]
             
@@ -214,10 +452,10 @@ class VariableRenamer:
             # Count matches
             count = len(re.findall(pattern, obfuscated_code))
             
-            # Replace
-            obfuscated_code = re.sub(pattern, obfuscated, obfuscated_code)
-            
-            total_replacements += count
+            if count > 0:
+                # Replace
+                obfuscated_code = re.sub(pattern, obfuscated, obfuscated_code)
+                total_replacements += count
         
         print(f"Made {total_replacements} total replacements")
         
@@ -280,10 +518,10 @@ def print_banner():
     banner = """
 ╔═══════════════════════════════════════════════════════════════════╗
 ║                                                                   ║
-║          SOLIDITY VARIABLE RENAMER / OBFUSCATOR                   ║
+║      SOLIDITY VARIABLE RENAMER / OBFUSCATOR (AST-based)           ║
 ║                                                                   ║
-║  Obfuscate variable names, function names, and contract names     ║
-║  by replacing them with deterministic hash values                 ║
+║  Obfuscate variable names using Abstract Syntax Tree parsing      ║
+║  More accurate than regex-based approach                          ║
 ║                                                                   ║
 ╚═══════════════════════════════════════════════════════════════════╝
 """
@@ -324,6 +562,24 @@ def print_mapping_preview(mapping: Dict[str, str], max_items: int = 10):
     print("="*70)
 
 
+def check_dependencies():
+    """Check if required dependencies are installed"""
+    try:
+        import solcx
+        return True
+    except ImportError:
+        print("\n" + "="*70)
+        print("ERROR: Missing Required Dependency")
+        print("="*70)
+        print("\nThis script requires 'py-solc-x' to be installed.")
+        print("\nPlease install it using:")
+        print("  pip install py-solc-x")
+        print("\nOr install all requirements:")
+        print("  pip install py-solc-x")
+        print("\n" + "="*70)
+        return False
+
+
 # ============================================
 # MAIN FUNCTION
 # ============================================
@@ -332,9 +588,13 @@ def main():
     """Main entry point"""
     import time
     
+    # Check dependencies first
+    if not check_dependencies():
+        sys.exit(1)
+    
     # Parse command-line arguments
     parser = argparse.ArgumentParser(
-        description='Obfuscate Solidity smart contract variable names',
+        description='Obfuscate Solidity smart contract variable names using AST',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -342,6 +602,10 @@ Examples:
   python variable_renamer.py input.sol output.sol --mapping mapping.json
   python variable_renamer.py input.sol output.sol --algorithm sha256
   python variable_renamer.py input.sol output.sol --prefix VAR --length 32
+  python variable_renamer.py input.sol output.sol --solc-version 0.8.20
+
+Note: This version uses AST (Abstract Syntax Tree) parsing for more accurate
+      identifier extraction compared to regex-based approaches.
         """
     )
     
@@ -386,6 +650,13 @@ Examples:
     )
     
     parser.add_argument(
+        '--solc-version',
+        '-s',
+        default='0.8.30',
+        help='Solidity compiler version (default: 0.8.30)'
+    )
+    
+    parser.add_argument(
         '--quiet',
         '-q',
         action='store_true',
@@ -415,6 +686,8 @@ Examples:
         print(f"  Hash algorithm:  {args.algorithm}")
         print(f"  Prefix:          {args.prefix}")
         print(f"  Hash length:     {args.length}")
+        print(f"  Solc version:    {args.solc_version}")
+        print(f"  Method:          AST parsing")
         print()
     
     # Start timing
@@ -433,13 +706,18 @@ Examples:
     
     # Create renamer
     if not args.quiet:
-        print("Initializing obfuscator...")
+        print("Initializing obfuscator (AST-based)...")
     
-    renamer = VariableRenamer(
-        hash_algorithm=args.algorithm,
-        prefix=args.prefix,
-        hash_length=args.length
-    )
+    try:
+        renamer = VariableRenamer(
+            hash_algorithm=args.algorithm,
+            prefix=args.prefix,
+            hash_length=args.length,
+            solc_version=args.solc_version
+        )
+    except Exception as e:
+        print(f"Error initializing renamer: {e}")
+        sys.exit(1)
     
     if not args.quiet:
         print(f"  ✓ Protected {len(renamer.reserved_keywords)} Solidity keywords")
@@ -447,12 +725,21 @@ Examples:
     
     # Obfuscate
     if not args.quiet:
-        print("Obfuscating code...")
+        print("Obfuscating code using AST...")
+        print()
     
-    obfuscated_code = renamer.obfuscate(source_code)
+    try:
+        obfuscated_code = renamer.obfuscate(source_code, args.input)
+    except Exception as e:
+        print(f"Error during obfuscation: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+    
     obfuscated_size = len(obfuscated_code)
     
     if not args.quiet:
+        print()
         print(f"  ✓ Generated {obfuscated_size:,} characters")
         print()
     
