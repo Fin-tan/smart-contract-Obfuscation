@@ -12,12 +12,12 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 src_dir = os.path.join(current_dir, 'src', 'obfuscator', 'layout')
 sys.path.append(src_dir)
 
-# Import the comment obfuscator
-from comment_remover import CommentObfuscator, run_comment_obfuscation, show_comparison
+# Import the comment remover
+from comment_remover import CommentRemover, run_comment_removal, show_comparison
 
 if __name__ == "__main__":
     # Run the complete demo
-    run_comment_obfuscation()
+    run_comment_removal()
     show_comparison()
     
     print("\n" + "=" * 80)

@@ -1,114 +1,53 @@
 #!/usr/bin/env python3
 """
-BiAn Comment Remover - Smart Contract Comment Obfuscation
-Implementation of comment obfuscation techniques for smart contract protection
+BiAn Comment Remover - Smart Contract Comment Removal
+Remove all comments from Solidity source code for distribution.
 Based on: BiAn Smart Contract Source Code Obfuscation Paper
 """
 
 import os
-import sys
-import random
 import re
 import time
 from typing import List, Dict, Tuple
 
-class CommentObfuscator:
-    """Smart Contract Comment Obfuscator with mixed strategy"""
+class CommentRemover:
+    """Remove comments from smart contract source code"""
     
     def __init__(self, source: str):
         self.src = source
-        
-        # Dummy code templates for replacement
-        self.dummy_templates = [
-            'uint256 dummy_{} = 0x{};',
-            'bool flag_{} = true;',
-            'bytes32 hash_{} = keccak256("{}");',
-            'address addr_{} = address(uint160(0x{}));'
-        ]
-        
-        # Misleading comment templates
-        self.misleading_comments = [
-            '// WARNING: This function will delete all data',
-            '// CRITICAL: This causes integer overflow', 
-            '// DANGER: This function is deprecated',
-            '// SECURITY: This function has vulnerabilities',
-            '// BUG: This function contains critical bugs'
-        ]
-        
-        # Obfuscated comment patterns
-        self.obfuscated_patterns = [
-            '// {}_obfuscated',
-            '// 0x{}',
-            '// {}_secure',
-            '// {}_encrypted'
-        ]
 
-    def generate_dummy_code(self) -> str:
-        """Generate dummy code to replace comments"""
-        dummy_id = random.randint(1000, 9999)
-        hex_value = hex(random.randint(0x10000000, 0xFFFFFFFF))[2:]
-        random_string = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz', k=6))
-        
-        template = random.choice(self.dummy_templates)
-        return template.format(dummy_id, hex_value, random_string)
+    def remove_comments(self) -> Tuple[str, List[Dict]]:
+        """Remove all comments (line, natspec, block) from the source code.
 
-    def generate_misleading_comment(self) -> str:
-        """Generate misleading comment to replace original"""
-        return random.choice(self.misleading_comments)
-
-    def generate_obfuscated_comment(self) -> str:
-        """Generate obfuscated comment content"""
-        random_text = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=10))
-        hex_value = hex(random.randint(0x10000000, 0xFFFFFFFF))[2:]
-        
-        pattern = random.choice(self.obfuscated_patterns)
-        return pattern.format(random_text, hex_value)
-
-    def obfuscate_comments(self) -> Tuple[str, List[Dict]]:
-        """Main obfuscation method with mixed strategy"""
+        Performs a single-pass scan over the source to avoid double-processing
+        the same regions (e.g., `///` being matched by both `///` and `//`).
+        """
         result = self.src
-        operations = []
-        
-        # Comment patterns to detect
-        comment_patterns = [
-            (r'//[^\n\r]*', 'single_line'),
-            (r'/\*[\s\S]*?\*/', 'multi_line'),
-            (r'///[^\n\r]*', 'natspec')
-        ]
-        
-        for pattern, comment_type in comment_patterns:
-            for match in re.finditer(pattern, result):
-                start, end = match.start(), match.end()
-                comment_text = match.group()
-                
-                # Skip if inside string literal
-                if self._is_inside_string(start, result):
-                    continue
-                
-                # Random strategy selection
-                strategy = random.choice(['dummy_code', 'misleading', 'obfuscated', 'remove'])
-                
-                if strategy == 'dummy_code':
-                    replacement = self.generate_dummy_code()
-                elif strategy == 'misleading':
-                    replacement = self.generate_misleading_comment()
-                elif strategy == 'obfuscated':
-                    replacement = self.generate_obfuscated_comment()
-                else:  # remove
-                    replacement = ''
-                
-                operations.append({
-                    'start': start,
-                    'end': end,
-                    'replacement': replacement,
-                    'strategy': strategy,
-                    'original': comment_text
-                })
-        
+        operations: List[Dict] = []
+
+        # Combined comment pattern. Order matters: match natspec before //.
+        combined_pattern = r'/\*[\s\S]*?\*/|///[^\n\r]*|//[^\n\r]*'
+
+        for match in re.finditer(combined_pattern, result):
+            start, end = match.start(), match.end()
+            comment_text = match.group()
+
+            # Skip if inside string literal
+            if self._is_inside_string(start, result):
+                continue
+
+            operations.append({
+                'start': start,
+                'end': end,
+                'replacement': '',  # removal only
+                'strategy': 'remove',
+                'original': comment_text
+            })
+
         # Apply operations in reverse order to maintain positions
         for op in sorted(operations, key=lambda x: x['start'], reverse=True):
             result = result[:op['start']] + op['replacement'] + result[op['end']:]
-        
+
         return result, operations
 
     def _is_inside_string(self, position: int, text: str) -> bool:
@@ -125,13 +64,13 @@ class CommentObfuscator:
         
         return dquote_count % 2 == 1
 
-def run_comment_obfuscation():
-    """Run comment obfuscation on test contract"""
+def run_comment_removal():
+    """Run comment removal on test contract"""
     
     print("=" * 80)
-    print("BiAn Comment Obfuscator - Smart Contract Protection")
+    print("BiAn Comment Remover - Smart Contract Protection")
     print("Based on: BiAn Smart Contract Source Code Obfuscation Paper")
-    print("Mixed Strategy: Dummy Code + Misleading + Obfuscation + Removal")
+    print("Strategy: Removal Only (delete all comments)")
     print("=" * 80)
     
     # Get test file path
@@ -150,58 +89,52 @@ def run_comment_obfuscation():
         print("-" * 50)
         print(original_code)
         
-        # Create obfuscator
-        obfuscator = CommentObfuscator(original_code)
+        # Create remover
+        remover = CommentRemover(original_code)
         
-        # Perform obfuscation
-        print("\n[STEP 2] Applying Mixed Strategy Obfuscation...")
+        # Perform removal
+        print("\n[STEP 2] Removing all comments...")
         start_time = time.time()
-        obfuscated_code, operations = obfuscator.obfuscate_comments()
+        removed_code, operations = remover.remove_comments()
         end_time = time.time()
         
-        print("\n[STEP 3] Obfuscated Smart Contract:")
+        print("\n[STEP 3] Comment-Removed Smart Contract:")
         print("-" * 50)
-        print(obfuscated_code)
+        print(removed_code)
         
         # Statistics
         original_chars = len(original_code)
-        obfuscated_chars = len(obfuscated_code)
+        obfuscated_chars = len(removed_code)
         processing_time = end_time - start_time
         
-        print(f"\n[STEP 4] Obfuscation Statistics:")
+        print(f"\n[STEP 4] Removal Statistics:")
         print("-" * 50)
         print(f"Processing time: {processing_time:.4f} seconds")
         print(f"Original characters: {original_chars}")
         print(f"Obfuscated characters: {obfuscated_chars}")
         print(f"Character difference: {obfuscated_chars - original_chars}")
         
-        # Strategy statistics
-        strategy_counts = {}
-        for op in operations:
-            strategy = op['strategy']
-            strategy_counts[strategy] = strategy_counts.get(strategy, 0) + 1
-        
-        print(f"\n[STEP 5] Strategy Usage:")
+        # Operation count
+        print(f"\n[STEP 5] Operations:")
         print("-" * 50)
-        for strategy, count in strategy_counts.items():
-            print(f"  {strategy}: {count} operations")
+        print(f"Removed comments: {len(operations)}")
         
         # Save result
         output_file = os.path.join(current_dir, 'test', 'obfuscated.sol')
         with open(output_file, 'w', encoding='utf-8') as f:
-            f.write(obfuscated_code)
+            f.write(removed_code)
         
         print(f"\n[STEP 6] Results:")
         print("-" * 50)
         print(f"Obfuscated code saved to: {output_file}")
         
         # Syntax check
-        if 'pragma solidity' in obfuscated_code and 'contract' in obfuscated_code:
+        if 'pragma solidity' in removed_code and 'contract' in removed_code:
             print("[PASS] Basic syntax check passed")
         else:
             print("[WARNING] Syntax may be affected")
         
-        print(f"\n[SUCCESS] Comment obfuscation completed!")
+        print(f"\n[SUCCESS] Comment removal completed!")
         print("Smart contract protection applied successfully!")
         
     except Exception as e:
@@ -223,17 +156,17 @@ def show_comparison():
         with open(original_file, 'r', encoding='utf-8') as f:
             original = f.read()
         
-        # Read obfuscated file
-        obfuscated_file = os.path.join(current_dir, 'test', 'obfuscated.sol')
-        if os.path.exists(obfuscated_file):
-            with open(obfuscated_file, 'r', encoding='utf-8') as f:
+        # Read comment-removed file
+        removed_file = os.path.join(current_dir, 'test', 'obfuscated.sol')
+        if os.path.exists(removed_file):
+            with open(removed_file, 'r', encoding='utf-8') as f:
                 obfuscated = f.read()
             
             print("BEFORE (Original Smart Contract):")
             print("-" * 50)
             print(original)
             
-            print("\nAFTER (Obfuscated Smart Contract):")
+            print("\nAFTER (Comment-Removed Smart Contract):")
             print("-" * 50)
             print(obfuscated)
             
@@ -243,26 +176,26 @@ def show_comparison():
             
             print(f"\n[COMPARISON SUMMARY]")
             print(f"Original comments: {original_comments}")
-            print(f"Obfuscated comments: {obfuscated_comments}")
+            print(f"Comments after removal: {obfuscated_comments}")
             print(f"Comments processed: {original_comments - obfuscated_comments}")
             
             if obfuscated_comments < original_comments:
-                print("[PASS] Comments successfully obfuscated")
+                print("[PASS] Comments successfully removed")
             else:
                 print("[WARNING] Some comments may remain")
         else:
-            print("[ERROR] Obfuscated file not found")
+            print("[ERROR] Comment-removed file not found")
             
     except Exception as e:
         print(f"[ERROR] {e}")
 
 if __name__ == "__main__":
-    # Run comment obfuscation
-    run_comment_obfuscation()
+    # Run comment removal
+    run_comment_removal()
     
     # Show comparison
     show_comparison()
     
     print("\n" + "=" * 80)
-    print("COMMENT OBFUSCATION COMPLETED")
+    print("COMMENT REMOVAL COMPLETED")
     print("=" * 80)
