@@ -235,7 +235,7 @@ def main():
     multi_line = '--multi-line' in sys.argv
     with open(input_path, 'r', encoding='utf-8') as f:
         src = f.read()
-    out = scramble_format(src, solidity_version="^0.8.30", remove_comments=not keep_comments, one_line=not multi_line)
+    out = scramble_format(src, solidity_version="^0.8.30", one_line=not multi_line)
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(out)
     print(f"[OK] Scrambled layout written to {output_path}")
