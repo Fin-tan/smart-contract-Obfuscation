@@ -1,2 +1,2 @@
-# smart-contract-Obfuscation-
-Clone biAn
+# Smart Contract Obfuscation
+Clone BiAn

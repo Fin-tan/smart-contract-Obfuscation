@@ -120,7 +120,7 @@ def run_comment_removal():
         print(f"Removed comments: {len(operations)}")
         
         # Save result
-        output_file = os.path.join(current_dir, 'test', 'obfuscated.sol')
+        output_file = os.path.join(current_dir, 'test', 'output_comment.sol')
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write(removed_code)
         
@@ -157,7 +157,7 @@ def show_comparison():
             original = f.read()
         
         # Read comment-removed file
-        removed_file = os.path.join(current_dir, 'test', 'obfuscated.sol')
+        removed_file = os.path.join(current_dir, 'test', 'output_comment.sol')
         if os.path.exists(removed_file):
             with open(removed_file, 'r', encoding='utf-8') as f:
                 obfuscated = f.read()

@@ -52,6 +52,6 @@ if __name__ == "__main__":
     print("\n" + "=" * 80)
     print("DEMO COMPLETED")
     print("=" * 80)
-    input_path = 'test\obfuscated.sol'
+    input_path = 'test\output_comment.sol'
     output_path = 'test\output_format.sol'
     run_demo(input_path, output_path)
