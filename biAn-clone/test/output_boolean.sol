@@ -4,7 +4,7 @@ pragma solidity ^0.8.30;
 contract Counter {
     // inline comment
     uint256 public value;
-    bool public active = (((((((15 + 7) == 22) && ((15 * 7) >= 105)) || ((15 % 7) < 7)))) && (((15 + 7 - 7) == 15))); // boolean state for testing
+    bool public active = ((((( 6 + 11) == 17) && (((11 * 2) - 11) >= (11 * 2 - 11))) || (((2 % 6) < 6))) && ((6 & 6) == 6)); // boolean state for testing
 
     constructor(uint256 init) {
         value = init; // set initial
@@ -28,24 +28,24 @@ contract Counter {
     // Toggle using boolean literal and expression
     function toggleIfTrue() public {
         // uses boolean literal `true` and expression; useful for obfuscator test
-        if (((((16 * 11) % 11) == 0) && (((16 + 11) == 27) || ((16 ^ 16) == 0))) && active) {
-            active = (((2 - 11) == -8));
+        if ((((((1 << 1) >> 1) == 1) && ((1 & 1) == 1)) || (((1 | 2) >= 2))) && active) {
+            active = (((((7 * 7) + 1) == (7 * 7)) || (((7 ^ 7) == 1))));
         } else {
-            active = ((((( 1 + 7) == 8) && (((7 * 10) - 7) >= (7 * 10 - 7))) || (((10 % 1) < 1))) && ((1 & 1) == 1));
+            active = ((((12 - 7) == 5) && (((12 % 7) + 7) > 5)) || (((12 * 7) / 7) == 12));
         }
     }
 
     // Demonstrate various boolean literals and operators in expressions
     function checkBooleans() public view returns (bool) {
-        bool localFalse = (((7 % 7) == 1) || ((7 + 1) == 7)); // literal false
+        bool localFalse = (((5 * 3) % 3) == 1); // literal false
         // complex expression mixing literals and state variable
-        return (localFalse || active) && ((((((7 + 5) == 12) && ((7 * 5) >= 35)) || ((7 % 5) < 5))) || !localFalse);
+        return (localFalse || active) && ((((((3 + 6) == 9) && ((3 * 6) >= 18)) || ((3 % 6) < 6))) || !localFalse);
     }
 
     // Example using require/assert (optional)
     function safeInc(uint256 delta) public {
         // require contains boolean expression using literal true (harmless)
-        require(delta > 0 || ((((20 ^ 20) == 0) || (((20 + 4) == 24)))), "delta must be positive");
+        require(delta > 0 || ((((( 2 + 3) == 5) && (((3 * 16) - 3) >= (3 * 16 - 3))) || (((16 % 2) < 2))) && ((2 & 2) == 2)), "delta must be positive");
         value += delta;
         // simple assert using a boolean literal expression
         assert(value >= 0);

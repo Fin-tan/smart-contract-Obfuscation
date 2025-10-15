@@ -11,6 +11,7 @@ import re
 import secrets
 import os
 import sys
+import json
 
 # solcx (py-solc-x)
 try:
@@ -89,8 +90,9 @@ def _make_true_variant() -> str:
 
 def _make_false_variant() -> str:
     """
-    Return a complex boolean expression (string) that evaluates to false, WITHOUT the literal 'false'.
-    Several randomized variants implemented as safe f-strings.
+    Return a complex boolean expression (string) that evaluates to false,
+    WITHOUT the literal 'false'. Uses only type-safe arithmetic so Solidity
+    compiler won't complain about signed/unsigned mismatches.
     """
     def r1(): return secrets.randbelow(8) + 1
     def r2(): return secrets.randbelow(12) + 1
@@ -102,8 +104,8 @@ def _make_false_variant() -> str:
         return f"((({a} + 1) == {a}) && ((({a} * 2) / 2) == {a}))"
     if pick == 1:
         a, b = r1(), r2()
-        # inverted epic with modified constants so equality fails
-        return f"((((({a} + {b}) == {a + b + 1}) && (({a} * {b}) >= {a * b + 1})) || (({a} % {b}) < 0)))"
+        # inverted epic with modified constants so equality fails (safe)
+        return f"((((({a} + {b}) == {a + b + 1}) && (({a} * {b}) >= {a * b + 1})) || (({a} % {b}) > {b})))"
     if pick == 2:
         a, b = r3(), r2()
         return f"((({a} << 1) >> 1) == {a + 1})"
@@ -120,15 +122,15 @@ def _make_false_variant() -> str:
         return f"((((({a} * {a}) + 1) == ({a} * {a})) || ((({a} ^ {a}) == 1))))"
     if pick == 6:
         a, b = r2(), r2() + 1
-        part1 = f"((((({a} + {b}) == {a + b + 2}) && (({a} * {b}) >= {a * b + 3})) || (({a} % {b}) < -1)))"
-        part2 = f"((((({b} + {a}) == {b + a + 1}) && (({b} * {a}) >= {b * a + 1})) || (({b} % {a}) < -1)))"
+        part1 = f"((((({a} + {b}) == {a + b + 2}) && (({a} * {b}) >= {a * b + 3})) || (({a} % {b}) > {b})))"
+        part2 = f"((((({b} + {a}) == {b + a + 1}) && (({b} * {a}) >= {b * a + 1})) || (({b} % {a}) > {a})))"
         return f"(({part1}) && ({part2}))"
     if pick == 7:
         a, b, c = r1(), r2(), r3()
         return f"((({a} & {a}) == {a + 1}) || ((({b} + {c}) == {b + c + 1})))"
     if pick == 8:
         a = r2()
-        return f"((({a} % {a}) == 1) || (({a} + 1) == {a}))"
+        return f"((({a} % {a + 1}) == {a}) || (({a} + 1) == {a}))"
     if pick == 9:
         a, b = r1(), r1() + 1
         return f"((({a} * {b}) == {a * b + 1}) && (({b} & {b}) == {b}))"
@@ -371,6 +373,38 @@ def _default_paths_based_on_this_file() -> Tuple[str,str]:
     outp = os.path.join(project_root, "test", "output_boolean.sol")
     return inp, outp
 
+def dump_ast_json(sol_file_path: str, out_json_path: Optional[str] = None, solc_version: str = DEFAULT_SOLC_VERSION) -> Optional[str]:
+    """
+    Compile Solidity file with solcx and dump AST to JSON.
+    Returns written path if success, else None.
+    """
+    if solcx is None:
+        print("[WARN] py-solc-x not installed, cannot dump AST.")
+        return None
+
+    try:
+        ensure_solc(solc_version)
+        result = compile_files([sol_file_path], output_values=["ast"])
+    except Exception as e:
+        print(f"[ERROR] solc compile failed: {e}")
+        return None
+
+    ast_container: Dict[str, dict] = {}
+    for k, v in result.items():
+        ast_container[k] = v.get("ast", {})
+
+    if not out_json_path:
+        out_json_path = os.path.join(os.path.dirname(os.path.abspath(sol_file_path)), "ast_boolean.json")
+
+    try:
+        with open(out_json_path, "w", encoding="utf-8") as f:
+            json.dump(ast_container, f, ensure_ascii=False, indent=2)
+        print(f"[INFO] AST dumped to: {out_json_path}")
+        return out_json_path
+    except Exception as e:
+        print(f"[ERROR] failed to write AST JSON: {e}")
+        return None
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Boolean obfuscator (AST-based with py-solc-x fallback). Default: test/test.sol -> test/output_boolean.sol")
@@ -396,4 +430,7 @@ if __name__ == "__main__":
     print(f"[INFO] Output file: {outp} (write_out={write_out_flag})")
 
     new_src, ops = split_booleans_file(inp, solc_version=args.solc, write_out=write_out_flag, out_path=outp)
+    # Dump AST of the input Solidity file to JSON next to output_boolean.sol
+    ast_out_path = os.path.join(os.path.dirname(outp), "ast_boolean.json")
+    dump_ast_json(inp, out_json_path=ast_out_path, solc_version=args.solc)
     print(f"[INFO] Replacements applied: {len(ops)}")
