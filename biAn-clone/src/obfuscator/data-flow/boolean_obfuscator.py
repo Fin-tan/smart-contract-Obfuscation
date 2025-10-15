@@ -22,10 +22,122 @@ except Exception:
 DEFAULT_SOLC_VERSION = "0.8.30"
 
 def _make_true_variant() -> str:
-    return "(true || (1 == 0))" if secrets.choice([0,1]) == 0 else "(true && (1 == 1))"
+    """
+    Return a complex boolean expression (string) that evaluates to true,
+    and does NOT contain the literal 'true'. Many randomized variants,
+    implemented with clean f-strings (no leftover placeholders).
+    """
+    def r1(): return secrets.randbelow(8) + 1       # 1..8
+    def r2(): return secrets.randbelow(12) + 1      # 1..12
+    def r3(): return secrets.randbelow(20) + 1      # 1..20
+
+    pick = secrets.randbelow(12)
+    if pick == 0:
+        a, b = r1(), r2()
+        return f"((((({a} + {b}) == {a + b}) && (({a} * {b}) >= {a * b})) || (({a} % {b}) < {b})))"
+    if pick == 1:
+        a, b = r2(), r1()
+        return (
+            f"(((({a} - {b}) == {a - b}) && ((({a} % {b}) + {b}) > {a - b})) "
+            f"|| ((({a} * {b}) / {b}) == {a}))"
+        )
+    if pick == 2:
+        a = r1(); b = a + 1
+        return f"((((({a} << 1) >> 1) == {a}) && (({a} & {a}) == {a})) || ((({a} | {b}) >= {b})))"
+    if pick == 3:
+        a, b = r3(), r2()
+        return (
+            f"(((({a} * {b}) % {b}) == 0) && ((({a} + {b}) == {a + b}) || (({a} ^ {a}) == 0)))"
+        )
+    if pick == 4:
+        a, b, c = r1(), r2(), r3()
+        # explicit, safe f-string without stray braces
+        return (
+            f"((((( {a} + {b}) == {a + b}) && ((({b} * {c}) - {b}) >= ({b} * {c} - {b}))) "
+            f"|| ((({c} % {a}) < {a}))) && (({a} & {a}) == {a}))"
+        )
+    if pick == 5:
+        a, b = r2(), r1()
+        left = f"((((({a} + {b}) == {a + b}) && (({a} * {b}) >= {a * b})) || (({a} % {b}) < {b})))"
+        right = f"(({b} & {b}) == {b})"
+        return f"(({left}) || ({right}))"
+    if pick == 6:
+        a, b = r2(), r2() + 1
+        part1 = f"((((({a} + {b}) == {a + b}) && (({a} * {b}) >= {a * b})) || (({a} % {b}) < {b})))"
+        part2 = f"((((({b} + {a}) == {b + a}) && (({b} * {a}) >= {b * a})) || (({b} % {a}) < {a})))"
+        return f"(({part1}) || ({part2}))"
+    if pick == 7:
+        a, b = r3(), r1()
+        epic = f"((((({a} + {b}) == {a + b}) && (({a} * {b}) >= {a * b})) || (({a} % {b}) < {b})))"
+        triv = f"(({a} + {b} - {b}) == {a})"
+        return f"(({epic}) && ({triv}))"
+    if pick == 8:
+        a, b = r2(), r1()
+        return f"(((({a} % {b}) == 0) || ((({a} << 1) >> 1) == {a})) && ((({a} + {b}) == {a + b})))"
+    if pick == 9:
+        a, b, c = r1(), r2(), r1() + 2
+        term1 = f"(({a} + {b}) == {a + b})"
+        term2 = f"(({b} * {c}) >= {b * c})"
+        term3 = f"(({c} % {a}) < {a})"
+        return f"(({term1} && {term2}) || {term3})"
+    if pick == 10:
+        a, b = r3(), r2()
+        return f"(((({a} ^ {a}) == 0) || ((({a} + {b}) == {a + b}))))"
+    # pick == 11
+    a, b = r1(), r2()
+    return f"(((({a} + {b}) == {a + b}) && (({a} * {b}) >= {a * b})) || (({a} % {b}) < {b}))"
 
 def _make_false_variant() -> str:
-    return "(false && (1 == 1))" if secrets.choice([0,1]) == 0 else "(false || (1 == 0))"
+    """
+    Return a complex boolean expression (string) that evaluates to false, WITHOUT the literal 'false'.
+    Several randomized variants implemented as safe f-strings.
+    """
+    def r1(): return secrets.randbelow(8) + 1
+    def r2(): return secrets.randbelow(12) + 1
+    def r3(): return secrets.randbelow(20) + 1
+
+    pick = secrets.randbelow(12)
+    if pick == 0:
+        a = r2()
+        return f"((({a} + 1) == {a}) && ((({a} * 2) / 2) == {a}))"
+    if pick == 1:
+        a, b = r1(), r2()
+        # inverted epic with modified constants so equality fails
+        return f"((((({a} + {b}) == {a + b + 1}) && (({a} * {b}) >= {a * b + 1})) || (({a} % {b}) < 0)))"
+    if pick == 2:
+        a, b = r3(), r2()
+        return f"((({a} << 1) >> 1) == {a + 1})"
+    if pick == 3:
+        a, b = r2(), r1()
+        return f"((({a} * {b}) % {b}) == 1)"
+    if pick == 4:
+        a, b = r1(), r2()
+        false_left = f"(({a} + 1) == {a})"
+        true_right = _make_true_variant()
+        return f"(({false_left}) && ({true_right}))"
+    if pick == 5:
+        a = r3()
+        return f"((((({a} * {a}) + 1) == ({a} * {a})) || ((({a} ^ {a}) == 1))))"
+    if pick == 6:
+        a, b = r2(), r2() + 1
+        part1 = f"((((({a} + {b}) == {a + b + 2}) && (({a} * {b}) >= {a * b + 3})) || (({a} % {b}) < -1)))"
+        part2 = f"((((({b} + {a}) == {b + a + 1}) && (({b} * {a}) >= {b * a + 1})) || (({b} % {a}) < -1)))"
+        return f"(({part1}) && ({part2}))"
+    if pick == 7:
+        a, b, c = r1(), r2(), r3()
+        return f"((({a} & {a}) == {a + 1}) || ((({b} + {c}) == {b + c + 1})))"
+    if pick == 8:
+        a = r2()
+        return f"((({a} % {a}) == 1) || (({a} + 1) == {a}))"
+    if pick == 9:
+        a, b = r1(), r1() + 1
+        return f"((({a} * {b}) == {a * b + 1}) && (({b} & {b}) == {b}))"
+    if pick == 10:
+        a, b = r2(), r3()
+        return f"((({a} - {b}) == {a - b + 1}))"
+    # pick == 11
+    a, b = r1(), r2()
+    return f"(((({a} * {b}) + 1) == ({a} * {b})) || ((({a} + {b}) == {a + b + 2})))"
 
 def ensure_solc(version: str = DEFAULT_SOLC_VERSION) -> bool:
     if solcx is None:
