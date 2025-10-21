@@ -120,13 +120,13 @@ def run_comment_removal()-> str:
         print(f"Removed comments: {len(operations)}")
         
         # Save result
-        output_file = os.path.join(current_dir, 'test', 'output_comment.sol')
-        with open(output_file, 'w', encoding='utf-8') as f:
-            f.write(removed_code)
+        #output_file = os.path.join(current_dir, 'test', 'output_comment.sol')
+        #with open(output_file, 'w', encoding='utf-8') as f:
+         #   f.write(removed_code)
         
         print(f"\n[STEP 6] Results:")
         print("-" * 50)
-        print(f"Obfuscated code saved to: {output_file}")
+       # print(f"Obfuscated code saved to: {output_file}")
         
         # Syntax check
         if 'pragma solidity' in removed_code and 'contract' in removed_code:
