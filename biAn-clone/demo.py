@@ -7,6 +7,7 @@ Smart Contract Comment Obfuscation Demo
 import os
 import sys
 
+
 # Add the src directory to Python path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 src_base = os.path.join(current_dir, 'src')
@@ -21,6 +22,7 @@ from comment_remover import CommentRemover, run_comment_removal, show_comparison
 from format_scrambler import scramble_format
 from variable_renamer import VariableRenamer
 from boolean_obfuscator import split_booleans_from_source
+from interger_obfuscator import obfuscate_integers_preserve_pragma
 
 def run_demo(input_file: str, output_file: str):
     if not os.path.exists(input_file):
@@ -59,14 +61,15 @@ def run_demo(input_file: str, output_file: str):
     except Exception as e:
         print(f"[WARN] Boolean obfuscation failed: {e}")
         boolean_code = renamed_code
-
+    interger_ob=obfuscate_integers_preserve_pragma(boolean_code)
+    print(interger_ob)
     # === 6️⃣ Write final output ===
     with open(output_file, 'w', encoding='utf-8', newline='\n') as f:
         f.write(boolean_code)
 
     print("\n[INFO] ✅ Final obfuscated Solidity code written to:", output_file)
     print("-" * 80)
-    print(boolean_code[:500], "...\n") 
+    print(interger_ob[:500], "...\n") 
 
 if __name__ == "__main__":
     # Run the complete demo
