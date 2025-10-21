@@ -15,6 +15,7 @@ sys.path.append(src_dir)
 # Import the comment remover
 from comment_remover import CommentRemover, run_comment_removal, show_comparison
 from format_scrambler import scramble_format
+from variable_renamer import VariableRenamer
 def run_demo(input_file: str, output_file: str):
     if not os.path.exists(input_file):
         print(f"[ERROR] Input file not found: {input_file}")
@@ -28,21 +29,23 @@ def run_demo(input_file: str, output_file: str):
     print("-" * 80)
     print(original_code[:500], "...") 
 
- 
+    # Loại comment và format
     scrambled_code = scramble_format(
         source=original_code,
         solidity_version="^0.8.30",
         remove_comments=True,   
         one_line=True           
     )
-
+    # Đổi tên biến
+    renamer = VariableRenamer(hash_algorithm='sha1', prefix='OX', hash_length=24, solc_version='0.8.30')
+    obfuscated=renamer.obfuscate(scrambled_code,input_file)
     
     with open(output_file, 'w', encoding='utf-8') as f:
-        f.write(scrambled_code)
+        f.write(obfuscated)
 
     print("\n[INFO] Scrambled Solidity code written to:", output_file)
     print("-" * 80)
-    print(scrambled_code[:500], "...") 
+    print(obfuscated[:500], "...") 
 
 if __name__ == "__main__":
     # Run the complete demo
