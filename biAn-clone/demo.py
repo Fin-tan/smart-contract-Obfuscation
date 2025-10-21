@@ -70,7 +70,8 @@ def run_demo(input_file: str, output_file: str):
     print("\n[INFO] ✅ Final obfuscated Solidity code written to:", output_file)
     print("-" * 80)
     print(interger_ob[:500], "...\n") 
-
+    with open(output_file, 'w', encoding='utf-8', newline='\n') as f:
+        f.write(boolean_code)
 if __name__ == "__main__":
     # Run the complete demo
   

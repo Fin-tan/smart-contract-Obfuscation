@@ -1,53 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.30;
-/* block comment */
-contract Counter {
-    // inline comment
-    uint256 public value;
-    bool public active = true; // boolean state for testing
 
-    constructor(uint256 init) {
-        value = init; // set initial
-    }
+contract HelloWorld {
+    function sayHello() public pure returns (uint) {
+        bool a = true;
+        uint sum = 0;
 
-    /// NatSpec comment
-    function inc(uint256 delta) public {
-        value += delta; // add
-    }
-
-    // return value
-    function get() public view returns (uint256) {
-        return value;
-    }
-
-    // Set boolean flag explicitly
-    function setActive(bool v) public {
-        active = v; // change flag
-    }
-
-    // Toggle using boolean literal and expression
-    function toggleIfTrue() public {
-        // uses boolean literal `true` and expression; useful for obfuscator test
-        if (true && active) {
-            active = false;
+        // ví dụ: đổi giá trị a dựa trên biểu thức XOR
+        uint x = 1 ^ 1; // 1 XOR 1 = 0
+        if (x == 1) {
+            a = true;
         } else {
-            active = true;
+            a = false;
         }
-    }
 
-    // Demonstrate various boolean literals and operators in expressions
-    function checkBooleans() public view returns (bool) {
-        bool localFalse = false; // literal false
-        // complex expression mixing literals and state variable
-        return (localFalse || active) && (true || !localFalse);
-    }
+        if (a) {
+            sum = 2;
+        }
 
-    // Example using require/assert (optional)
-    function safeInc(uint256 delta) public {
-        // require contains boolean expression using literal true (harmless)
-        require(delta > 0 || true, "delta must be positive");
-        value += delta;
-        // simple assert using a boolean literal expression
-        assert(value >= 0);
+        return sum; // kết quả sẽ là 0 (vì 1 ^ 1 = 0)
     }
 }
