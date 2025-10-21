@@ -281,11 +281,7 @@ def split_booleans_file(sol_file_path: str,
         # normalize newlines before writing
         new_text = _normalize_newlines(new_text)
         if write_out:
-            write_path = out_path if out_path else os.path.join(os.path.dirname(os.path.abspath(sol_file_path)), "output_boolean.sol")
-            # write with explicit newline '\n' to avoid platform newline translation issues
-            with open(write_path, "w", encoding="utf-8", newline="\n") as wf:
-                wf.write(new_text)
-            print(f"[INFO] (fallback) Wrote obfuscated file to: {write_path}")
+            print("[INFO] (in-memory mode) Boolean obfuscation completed.")
         return new_text, ops
 
     # AST available -> collect boolean literal nodes
@@ -343,13 +339,7 @@ def split_booleans_file(sol_file_path: str,
     new_text = _normalize_newlines(new_text)
 
     if write_out:
-        write_path = out_path if out_path else os.path.join(os.path.dirname(os.path.abspath(sol_file_path)), "output_boolean.sol")
-        try:
-            with open(write_path, "w", encoding="utf-8", newline="\n") as wf:
-                wf.write(new_text)
-            print(f"[INFO] (ast) Wrote obfuscated file to: {write_path}")
-        except Exception as e:
-            print(f"[WARN] Failed to write obfuscated file to {write_path}: {e}")
+        print("[INFO] (in-memory mode) Boolean obfuscation completed — no file written.")
 
     return new_text, ops
 
