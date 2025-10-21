@@ -64,7 +64,7 @@ class CommentRemover:
         
         return dquote_count % 2 == 1
 
-def run_comment_removal():
+def run_comment_removal()-> str:
     """Run comment removal on test contract"""
     
     print("=" * 80)
@@ -136,7 +136,7 @@ def run_comment_removal():
         
         print(f"\n[SUCCESS] Comment removal completed!")
         print("Smart contract protection applied successfully!")
-        
+        return removed_code
     except Exception as e:
         print(f"[ERROR] {e}")
         import traceback

@@ -28,14 +28,16 @@ def run_demo(input_file: str, output_file: str):
     print("[INFO] Original Solidity code loaded.")
     print("-" * 80)
     print(original_code[:500], "...") 
-
+    remove=run_comment_removal()
+    print("da remove:",remove)
     # Loại comment và format
     scrambled_code = scramble_format(
-        source=original_code,
+        source=remove,
         solidity_version="^0.8.30",
         remove_comments=True,   
         one_line=True           
     )
+    print("da format",scramble_format)
     # Đổi tên biến
     renamer = VariableRenamer(hash_algorithm='sha1', prefix='OX', hash_length=24, solc_version='0.8.30')
     obfuscated=renamer.obfuscate(scrambled_code,input_file)
@@ -49,12 +51,11 @@ def run_demo(input_file: str, output_file: str):
 
 if __name__ == "__main__":
     # Run the complete demo
-    run_comment_removal()
-    show_comparison()
+  
     
     print("\n" + "=" * 80)
     print("DEMO COMPLETED")
     print("=" * 80)
-    input_path = 'test\output_comment.sol'
-    output_path = 'test\output_format.sol'
+    input_path = 'test/test.sol'
+    output_path = 'test/test_output.sol'
     run_demo(input_path, output_path)
