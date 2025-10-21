@@ -19,14 +19,14 @@ Author: Smart Contract Obfuscator Team
 Version: 2.0.0 (AST-based)
 """
 
-import sys
-import os
+import sys #thao tac voi he thong: thoat file doc argv
+import os #thao tác với file,dường dẫn
 import re
-import hashlib
+import hashlib #hash
 import json
 import argparse
 from typing import Set, Dict, Optional, List, Tuple
-from pathlib import Path
+from pathlib import Path # xử lí đường dãn dạng đối tượng
 
 # Import Solidity compiler
 try:
