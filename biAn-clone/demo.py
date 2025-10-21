@@ -61,17 +61,18 @@ def run_demo(input_file: str, output_file: str):
     except Exception as e:
         print(f"[WARN] Boolean obfuscation failed: {e}")
         boolean_code = renamed_code
-    interger_ob=obfuscate_integers_preserve_pragma(boolean_code)
-    print(interger_ob)
+
     # === 6️⃣ Write final output ===
     with open(output_file, 'w', encoding='utf-8', newline='\n') as f:
         f.write(boolean_code)
 
     print("\n[INFO] ✅ Final obfuscated Solidity code written to:", output_file)
     print("-" * 80)
+    interger_ob=obfuscate_integers_preserve_pragma(boolean_code)
+    print(interger_ob)
     print(interger_ob[:500], "...\n") 
     with open(output_file, 'w', encoding='utf-8', newline='\n') as f:
-        f.write(boolean_code)
+        f.write(interger_ob)
 if __name__ == "__main__":
     # Run the complete demo
   
