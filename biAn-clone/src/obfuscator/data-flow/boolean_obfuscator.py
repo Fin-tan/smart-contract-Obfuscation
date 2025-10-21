@@ -119,7 +119,7 @@ def _make_false_variant() -> str:
         return f"(({false_left}) && ({true_right}))"
     if pick == 5:
         a = r3()
-        return f"((((({a} * {a}) + 1) == ({a} * {a})) || ((({a} ^ {a}) == 1))))"
+        return f"((((({a} * {a}) + 1) == ({a} * {a})) && ((({a} ^ {a}) == 1))))"
     if pick == 6:
         a, b = r2(), r2() + 1
         part1 = f"((((({a} + {b}) == {a + b + 2}) && (({a} * {b}) >= {a * b + 3})) || (({a} % {b}) > {b})))"
@@ -130,7 +130,7 @@ def _make_false_variant() -> str:
         return f"((({a} & {a}) == {a + 1}) || ((({b} + {c}) == {b + c + 1})))"
     if pick == 8:
         a = r2()
-        return f"((({a} % {a + 1}) == {a}) || (({a} + 1) == {a}))"
+        return f"((({a} % {a + 1}) == {a}) && (({a} + 1) == {a}))"
     if pick == 9:
         a, b = r1(), r1() + 1
         return f"((({a} * {b}) == {a * b + 1}) && (({b} & {b}) == {b}))"
