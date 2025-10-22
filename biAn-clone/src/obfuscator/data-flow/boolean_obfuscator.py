@@ -339,7 +339,7 @@ def split_booleans_file(sol_file_path: str,
     new_text = _normalize_newlines(new_text)
 
     if write_out:
-        print("[INFO] (in-memory mode) Boolean obfuscation completed — no file written.")
+        print("[INFO] (in-memory mode) Boolean obfuscation completed.")
 
     return new_text, ops
 
