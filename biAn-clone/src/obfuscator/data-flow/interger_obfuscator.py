@@ -27,8 +27,6 @@ _TOKEN_PATTERN = re.compile(r'("([^"\\]|\\.)*"|\'([^\'\\]|\\.)*\'|\b\d+\b)', re.
 
 # ---------- Expression generator (BiAn-like strategies) ----------
 def _gen_expr_for(n: int) -> str:
-    if n == 0:
-        return "0"
     strategies = ['add', 'sub', 'mul', 'shift', 'xor']
     strat = random.choice(strategies)
 
