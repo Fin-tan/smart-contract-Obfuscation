@@ -8,7 +8,7 @@ Based on: BiAn Smart Contract Source Code Obfuscation Paper
 import os
 import re
 import time
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 
 class CommentRemover:
     """Remove comments from smart contract source code"""
@@ -64,65 +64,38 @@ class CommentRemover:
         
         return dquote_count % 2 == 1
 
-def run_comment_removal()-> str:
+def run_comment_removal(source_text: Optional[str] = None, file_path: Optional[str] = None) -> str:
     """Run comment removal on test contract"""
     
-    # Get test file path
-    current_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    test_file = os.path.join(current_dir, 'test', 'test.sol')
-    
-    if not os.path.exists(test_file):
-        print(f"[ERROR] Test file not found: {test_file}")
-        return
-    
-    try:
-        with open(test_file, 'r', encoding='utf-8') as f:
-            original_code = f.read()
-        
-        # Create remover
-        remover = CommentRemover(original_code)
-        
-        # Perform removal
-        start_time = time.time()
-        removed_code, operations = remover.remove_comments()
-        end_time = time.time()
-        
-        # Save result
-        # output_file = os.path.join(current_dir, 'test', 'output_comment.sol')
-        # with open(output_file, 'w', encoding='utf-8') as f:
-        #     f.write(removed_code)
-        
-        return removed_code
-    except Exception as e:
-        print(f"[ERROR] {e}")
-        import traceback
-        traceback.print_exc()
+    if not source_text and not file_path:
+        raise ValueError("Must provide either source_text or file_path to run_comment_removal().")
 
-def show_comparison():
-    """Display before/after comparison"""
-    try:
-        # Read original file
-        current_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        original_file = os.path.join(current_dir, 'test', 'test.sol')
-        with open(original_file, 'r', encoding='utf-8') as f:
-            original = f.read()
-        
-        # Read comment-removed file
-        removed_file = os.path.join(current_dir, 'test', 'output_comment.sol')
-        if os.path.exists(removed_file):
-            with open(removed_file, 'r', encoding='utf-8') as f:
-                obfuscated = f.read()
-            # Compare comments
-            original_comments = len(re.findall(r'//[^\n\r]*|/\*[\s\S]*?\*/|///[^\n\r]*', original))
-            obfuscated_comments = len(re.findall(r'//[^\n\r]*|/\*[\s\S]*?\*/|///[^\n\r]*', obfuscated))
-        else:
-            print("[ERROR] Comment-removed file not found")
-    except Exception as e:
-        print(f"[ERROR] {e}")
+    # Load source
+    if source_text is None:
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"Source file not found: {file_path}")
+        with open(file_path, 'r', encoding='utf-8') as f:
+            source_text = f.read()
+
+    # Perform removal
+    remover = CommentRemover(source_text)
+    start_time = time.time()
+    removed_code, operations = remover.remove_comments()
+    duration = time.time() - start_time
+
+    print(f"[INFO] Comment removal completed ({len(operations)} comments removed, {duration:.2f}s).")
+    return removed_code
+
+def show_comparison(original_code: str, processed_code: str) -> None:
+    """Display before/after comment counts for quick sanity check."""
+    pattern = r'//[^\n\r]*|/\*[\s\S]*?\*/|///[^\n\r]*'
+    orig_comments = len(re.findall(pattern, original_code))
+    new_comments = len(re.findall(pattern, processed_code))
+    print(f"[INFO] Comments before: {orig_comments}, after removal: {new_comments}")
 
 if __name__ == "__main__":
-    # Run comment removal
-    run_comment_removal()
-    
-    # Show comparison
-    show_comparison()
+    test_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'test', 'test.sol')
+    with open(test_path, 'r', encoding='utf-8') as f:
+        code = f.read()
+    cleaned = run_comment_removal(source_text=code)
+    show_comparison(code, cleaned)
