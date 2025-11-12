@@ -47,7 +47,7 @@ def _ensure_ast_json(sol_file: str, out_json: str, solc_version: str = "0.8.30")
         import json as _json
         with open(out_json, "w", encoding="utf-8") as out:
             _json.dump(ast_obj, out, ensure_ascii=False, indent=2)
-        print(f"[INFO] Generated AST JSON at: {out_json}")
+        # AST JSON generated silently
     except Exception as e:
         print(f"[WARN] Could not generate AST JSON automatically: {e}")
 
@@ -60,12 +60,7 @@ def run_demo(input_file: str, output_file: str):
     with open(input_file, 'r', encoding='utf-8') as f:
         original_code = f.read()
 
-    print("[INFO] Original Solidity code loaded.")
-    print("-" * 80)
-    try:
-        print(original_code[:500], "...")
-    except UnicodeEncodeError:
-        print(original_code[:500].encode('ascii', errors='replace').decode('ascii'), "...") 
+    # Code loaded, no need to print it 
 
     # Static to dynamic - enabled by default, disable by setting BIAN_ENABLE_STATIC=0
     enable_static = os.getenv("BIAN_ENABLE_STATIC", "1") == "1"
@@ -164,8 +159,7 @@ def run_demo(input_file: str, output_file: str):
     except Exception as e:
         print(f"[ERROR] Failed to write output file: {e}")
 
-    print("DEMO COMPLETED")
-    print("=" * 80)
+    print("\n[OK] Obfuscation completed successfully!")
 
 if __name__ == "__main__":
     input_path = 'test/test.sol'

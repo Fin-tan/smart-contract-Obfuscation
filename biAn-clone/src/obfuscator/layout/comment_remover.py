@@ -83,7 +83,7 @@ def run_comment_removal(source_text: Optional[str] = None, file_path: Optional[s
     removed_code, operations = remover.remove_comments()
     duration = time.time() - start_time
 
-    print(f"[INFO] Comment removal completed ({len(operations)} comments removed, {duration:.2f}s).")
+    # Comment removal completed silently
     return removed_code
 
 def show_comparison(original_code: str, processed_code: str) -> None:

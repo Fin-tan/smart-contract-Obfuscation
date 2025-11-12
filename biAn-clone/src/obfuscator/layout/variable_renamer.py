@@ -74,20 +74,32 @@ class SolidityASTParser:
             print(f"Warning: Could not setup Solidity compiler: {e}")
             print("Will attempt to use default compiler")
     
-    def compile_to_ast(self, source_code: str, file_path: str = None) -> Dict:
+    def compile_to_ast(self, source_code: str = None, file_path: str = None) -> Dict:
         """
         Compile Solidity source to AST
         
         Args:
-            source_code: Solidity source code
-            file_path: Optional file path (for better error messages)
+            source_code: Solidity source code (takes priority if provided)
+            file_path: Optional file path (used only if source_code is not provided)
             
         Returns:
             AST dictionary
         """
         try:
-            if file_path and os.path.exists(file_path):
-                # Compile from file
+            # Priority: source_code > file_path
+            # This ensures we use the transformed code from the workflow
+            # instead of re-reading the original file
+            if source_code and source_code.strip():
+                # Compile from source code (transformed code from workflow)
+                compiled = compile_source(
+                    source_code,
+                    output_values=['ast'],
+                    solc_version=self.solc_version
+                )
+                contract_name = list(compiled.keys())[0]
+                ast = compiled[contract_name]['ast']
+            elif file_path and os.path.exists(file_path):
+                # Fallback: compile from file (only if source_code not provided)
                 compiled = compile_files(
                     [file_path],
                     output_values=['ast'],
@@ -96,23 +108,17 @@ class SolidityASTParser:
                 contract_name = list(compiled.keys())[0]
                 ast = compiled[contract_name]['ast']
             else:
-                # Compile from source
-                compiled = compile_source(
-                    source_code,
-                    output_values=['ast'],
-                    solc_version=self.solc_version
-                )
-                contract_name = list(compiled.keys())[0]
-                ast = compiled[contract_name]['ast']
+                raise ValueError("Either source_code or valid file_path must be provided")
             
+            # Determine AST output path
             if file_path:
                 ast_output_path=os.path.splitext(file_path)[0] + '_ast.json'
             else:
                 ast_output_path='output_ast.json'
 
             with open(ast_output_path, 'w', encoding='utf-8') as f:
-                json.dump(ast, f, indent=2)
-            print(f"AST saved to: {ast_output_path}")
+                json.dump(ast, f, indent=2, ensure_ascii=False)
+            # AST saved silently
             return ast
             
         except Exception as e:
@@ -363,20 +369,19 @@ class VariableRenamer:
         Extract identifiers using AST parsing
         
         Args:
-            source_code: Solidity source code
-            file_path: Optional file path
+            source_code: Solidity source code (required for workflow compatibility)
+            file_path: Optional file path (used as fallback or for AST output path)
             
         Returns:
             Set of identifier names
         """
-        # Compile to AST
+        # Compile to AST - source_code takes priority to use transformed code
         ast = self.ast_parser.compile_to_ast(source_code, file_path)
         
         if not ast:
             print("Warning: Failed to parse AST, falling back to regex")
             return self._extract_identifiers_regex(source_code)
-        else: 
-            print("  ✓ AST parsed successfully")
+        # AST parsed successfully (silent)
         # Extract identifiers from AST
         identifiers = self.ast_parser.extract_identifiers(ast)
         
@@ -413,18 +418,14 @@ class VariableRenamer:
         Obfuscate all identifiers in source code using AST
         
         Args:
-            source_code: Original Solidity code
-            file_path: Optional file path
+            source_code: Solidity code (should be the transformed code from workflow)
+            file_path: Optional file path (used only for AST output path, not for reading)
             
         Returns:
             Obfuscated code
         """
-        print("Parsing source code with AST...")
-        
-        # Extract identifiers using AST
+        # Extract identifiers using AST - source_code is used, not file_path
         identifiers = self.extract_identifiers_from_ast(source_code, file_path)
-        
-        print(f"Found {len(identifiers)} identifiers to obfuscate")
         
         if len(identifiers) == 0:
             print("Warning: No identifiers found!")
@@ -439,25 +440,16 @@ class VariableRenamer:
         sorted_identifiers = sorted(identifiers, key=len, reverse=True)
         
         obfuscated_code = source_code
-        total_replacements = 0
         
         # Replace each identifier
-        print("Replacing identifiers...")
         for original in sorted_identifiers:
             obfuscated = self.identifier_map[original]
             
             # Use word boundary to match complete words only
             pattern = r'\b' + re.escape(original) + r'\b'
             
-            # Count matches
-            count = len(re.findall(pattern, obfuscated_code))
-            
-            if count > 0:
-                # Replace
-                obfuscated_code = re.sub(pattern, obfuscated, obfuscated_code)
-                total_replacements += count
-        
-        print(f"Made {total_replacements} total replacements")
+            # Replace
+            obfuscated_code = re.sub(pattern, obfuscated, obfuscated_code)
         
         return obfuscated_code
     
