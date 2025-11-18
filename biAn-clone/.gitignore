@@ -6,3 +6,4 @@ env/
 __pycache__
 ./node_modules
 test_output.sol
+*.json

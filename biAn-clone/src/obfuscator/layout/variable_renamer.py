@@ -453,6 +453,64 @@ class VariableRenamer:
         
         return obfuscated_code
     
+    def obfuscate_from_source(self, source_code: str, ast_path: str = None) -> str:
+        """
+        BiAn-style obfuscation: use pre-generated AST from progressive workflow
+        
+        Args:
+            source_code: Current transformed source code
+            ast_path: Path to pre-generated AST file from previous step
+            
+        Returns:
+            Obfuscated code with variables renamed
+        """
+        if ast_path and os.path.exists(ast_path):
+            # Load pre-generated AST
+            try:
+                with open(ast_path, 'r', encoding='utf-8') as f:
+                    ast_data = json.load(f)
+                
+                # Extract identifiers directly from loaded AST
+                identifiers = self.ast_parser.extract_identifiers(ast_data)
+                # Remove reserved keywords
+                identifiers -= self.reserved_keywords
+                identifiers.discard('')
+                identifiers.discard(None)
+                
+            except Exception as e:
+                print(f"[WARN] Could not load pre-generated AST {ast_path}: {e}")
+                # Fallback to AST compilation
+                return self.obfuscate(source_code, None)
+        else:
+            # Fallback to standard obfuscate method
+            return self.obfuscate(source_code, None)
+        
+        if len(identifiers) == 0:
+            print("Warning: No identifiers found in AST!")
+            return source_code
+        
+        # Generate hash mappings for new identifiers
+        for identifier in identifiers:
+            if identifier not in self.identifier_map:
+                self.identifier_map[identifier] = self.generate_hash_name(identifier)
+        
+        # Sort by length (longest first) to avoid partial replacements
+        sorted_identifiers = sorted(identifiers, key=len, reverse=True)
+        
+        obfuscated_code = source_code
+        
+        # Replace each identifier
+        for original in sorted_identifiers:
+            obfuscated = self.identifier_map[original]
+            
+            # Use word boundary to match complete words only
+            pattern = r'\b' + re.escape(original) + r'\b'
+            
+            # Replace
+            obfuscated_code = re.sub(pattern, obfuscated, obfuscated_code)
+        
+        return obfuscated_code
+    
     def get_mapping(self) -> Dict[str, str]:
         """
         Get the identifier mapping table
