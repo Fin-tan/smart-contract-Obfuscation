@@ -6,4 +6,5 @@ env/
 __pycache__
 ./node_modules
 test_output.sol
+test/test_step*.sol
 *.json

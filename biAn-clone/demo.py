@@ -24,9 +24,10 @@ from variable_renamer import VariableRenamer
 from boolean_obfuscator import split_booleans_from_source
 from interger_obfuscator import obfuscate_integers_preserve_pragma
 from static_data_obfuscator import transform_static_to_dynamic
+from local_state_obfuscator import convert_locals_to_state
 
 # BiAn-style AST regeneration: create fresh AST from current source after each transformation
-def _regenerate_ast_from_source(source_code: str, temp_file_path: str, ast_output_path: str, solc_version: str = "0.8.30") -> bool:
+def _regenerate_ast_from_source(source_code: str, source_file_path: str, ast_output_path: str, solc_version: str = "0.8.30") -> bool:
     """
     Regenerate AST from current source code (BiAn approach).
     Write source to temp file, compile to get fresh AST, save AST to output path.
@@ -38,19 +39,19 @@ def _regenerate_ast_from_source(source_code: str, temp_file_path: str, ast_outpu
         install_solc(solc_version)
         set_solc_version(solc_version)
         
-        # Write current source to temporary file
-        os.makedirs(os.path.dirname(temp_file_path), exist_ok=True)
-        with open(temp_file_path, "w", encoding="utf-8") as f:
+        # Write current source to snapshot file for this step
+        os.makedirs(os.path.dirname(source_file_path), exist_ok=True)
+        with open(source_file_path, "w", encoding="utf-8") as f:
             f.write(source_code)
         
         # Compile source to get fresh AST
         std_input = {
             "language": "Solidity",
-            "sources": { temp_file_path: { "content": source_code } },
-            "settings": { "outputSelection": { temp_file_path: { "": ["ast"] } } }
+            "sources": { source_file_path: { "content": source_code } },
+            "settings": { "outputSelection": { source_file_path: { "": ["ast"] } } }
         }
-        result = compile_standard(std_input, allow_paths=os.path.dirname(temp_file_path))
-        ast_obj = result["sources"][temp_file_path]["ast"]
+        result = compile_standard(std_input, allow_paths=os.path.dirname(source_file_path))
+        ast_obj = result["sources"][source_file_path]["ast"]
         
         # Save fresh AST
         os.makedirs(os.path.dirname(ast_output_path), exist_ok=True)
@@ -65,13 +66,12 @@ def _regenerate_ast_from_source(source_code: str, temp_file_path: str, ast_outpu
 
 # Initial AST generation (for first step only)
 def _ensure_initial_ast(sol_file: str, out_json: str, solc_version: str = "0.8.30") -> None:
-    if os.path.exists(out_json):
-        return
-    
     with open(sol_file, "r", encoding="utf-8") as f:
         source = f.read()
-    
-    _regenerate_ast_from_source(source, sol_file, out_json, solc_version)
+
+    step0_path = os.path.join('test', 'test_step0.sol')
+    if not _regenerate_ast_from_source(source, step0_path, out_json, solc_version):
+        print("[WARN] Could not regenerate initial AST; proceeding with previous version if available.")
 
 def run_demo(input_file: str, output_file: str):
     if not os.path.exists(input_file):
@@ -95,17 +95,33 @@ def run_demo(input_file: str, output_file: str):
         step_counter += 1
         
         # Create temp file for current source
-        temp_source_path = os.path.join('test', f'temp_step{step_counter}.sol')
+        step_source_path = os.path.join('test', f'test_step{step_counter}.sol')
         new_ast_path = os.path.join('test', f'test_ast_step{step_counter}.json')
         
         # Regenerate AST from current source (BiAn approach)
-        if _regenerate_ast_from_source(source_code, temp_source_path, new_ast_path):
+        if _regenerate_ast_from_source(source_code, step_source_path, new_ast_path):
             print(f"[AST] Regenerated AST after {step_name} -> {new_ast_path}")
             current_ast_path = new_ast_path
         else:
             print(f"[WARN] AST regeneration failed for {step_name}, using previous AST")
         
         return current_ast_path
+
+    # Step 0: Promote eligible local variables to state variables
+    enable_local_state = os.getenv("BIAN_ENABLE_LOCAL_STATE", "1") == "1"
+    if enable_local_state:
+        try:
+            promoted_source, promoted_count = convert_locals_to_state(current_source, current_ast_path)
+            if promoted_count > 0:
+                current_source = promoted_source
+                current_ast_path = next_step(current_source, "local-to-state promotion")
+                print(f"[OK] Local-to-state promotion done ({promoted_count} variables).")
+            else:
+                print("[INFO] Local-to-state promotion skipped (no eligible locals).")
+        except Exception as e:
+            print(f"[WARN] Local→state promotion failed: {e}")
+    else:
+        print("[INFO] Local-to-state promotion disabled (set BIAN_ENABLE_LOCAL_STATE=1 to enable).")
 
     # Step 1: Static data obfuscation
     enable_static = os.getenv("BIAN_ENABLE_STATIC", "1") == "1"

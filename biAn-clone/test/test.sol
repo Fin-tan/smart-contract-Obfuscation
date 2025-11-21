@@ -20,4 +20,16 @@ contract HelloWorld {
 
         return sum; // kết quả sẽ là 0 (vì 1 ^ 1 = 0)
     }
+
+    uint256 private storedValue;   // biến state để lưu kết quả
+    // Hàm KHÔNG pure — có ghi vào state
+    function compute(uint256 a) public {
+        uint256 tmp = a * 2 + 3;   // tính toán gì đó
+        storedValue = tmp;         // ghi vào state
+    }
+
+    // Hàm để kiểm tra kết quả
+    function getStoredValue() public view returns (uint256) {
+        return storedValue;
+    }
 }
