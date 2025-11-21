@@ -24,6 +24,7 @@ from variable_renamer import VariableRenamer
 from boolean_obfuscator import split_booleans_from_source
 from interger_obfuscator import obfuscate_integers_preserve_pragma
 from static_data_obfuscator import transform_static_to_dynamic
+from scalar_splitter import split_scalar_variables
 from local_state_obfuscator import convert_locals_to_state
 
 # BiAn-style AST regeneration: create fresh AST from current source after each transformation
@@ -165,11 +166,29 @@ def run_demo(input_file: str, output_file: str):
         except Exception as e:
             print(f"[WARN] Integer obfuscation failed: {e}")
 
+    # Step 4: Scalar variable splitting (only when not in static-only mode)
+    enable_scalar = os.getenv("BIAN_ENABLE_SCALAR", "1") == "1"
+    if static_only:
+        print("[INFO] Scalar splitting skipped (static-only mode).")
+    elif not enable_scalar:
+        print("[INFO] Scalar splitting disabled (set BIAN_ENABLE_SCALAR=1 to enable).")
+    else:
+        try:
+            scalar_obfuscated, scalar_count = split_scalar_variables(current_source, current_ast_path)
+            if scalar_count > 0:
+                current_source = scalar_obfuscated
+                current_ast_path = next_step(current_source, "scalar splitting")
+                print(f"[OK] Scalar splitting done ({scalar_count} variables).")
+            else:
+                print("[INFO] Scalar splitting skipped (no eligible variables).")
+        except Exception as e:
+            print(f"[WARN] Scalar splitting failed: {e}")
+
     if static_only:
         # Preserve original formatting: skip comment removal + layout passes
         print("[INFO] Static-only mode: skipped comment removal, formatting, renaming.")
     else:
-        # Step 4: Comment removal
+        # Step 5: Comment removal
         try:
             comment_removed = run_comment_removal(source_text=current_source)
             current_source = comment_removed
@@ -178,7 +197,7 @@ def run_demo(input_file: str, output_file: str):
         except Exception as e:
             print(f"[WARN] Comment removal failed: {e}")
 
-        # Step 5: Format scrambling
+        # Step 6: Format scrambling
         try:
             scrambled_code = scramble_format(
                 source=current_source,
@@ -192,7 +211,7 @@ def run_demo(input_file: str, output_file: str):
         except Exception as e:
             print(f"[WARN] Format scrambling failed: {e}")
 
-        # Step 6: Variable renaming (uses fresh AST)
+        # Step 7: Variable renaming (uses fresh AST)
         try:
             renamer = VariableRenamer(
                 hash_algorithm='sha1',
