@@ -54,7 +54,7 @@ class OpaquePredicateInserter:
             if source_code:
                 # Create a temp file to compile
                 import tempfile
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.sol', delete=False, encoding='utf-8') as tmp:
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.sol', delete=False, encoding='utf-8', newline='\n') as tmp:
                     tmp.write(source_code)
                     temp_path = tmp.name
                     target_path = temp_path
