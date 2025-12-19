@@ -13,7 +13,8 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 src_base = os.path.join(current_dir, 'src')
 layout_dir = os.path.join(src_base, 'obfuscator', 'layout')
 dataflow_dir = os.path.join(src_base, 'obfuscator', 'data-flow')
-for p in (layout_dir, dataflow_dir):
+controlflow_dir = os.path.join(src_base, 'obfuscator', 'control-flow')
+for p in (layout_dir, dataflow_dir, controlflow_dir):
     if p not in sys.path:
         sys.path.insert(0, p)
 
@@ -26,6 +27,7 @@ from interger_obfuscator import obfuscate_integers_preserve_pragma
 from static_data_obfuscator import transform_static_to_dynamic
 from scalar_splitter import split_scalar_variables
 from local_state_obfuscator import convert_locals_to_state
+from opaque_predicate_obfuscator import OpaquePredicateInserter
 
 # BiAn-style AST regeneration: create fresh AST from current source after each transformation
 def _regenerate_ast_from_source(source_code: str, source_file_path: str, ast_output_path: str, solc_version: str = "0.8.30") -> bool:
@@ -89,6 +91,7 @@ def run_demo(input_file: str, output_file: str):
     current_ast_path = os.path.join('test', 'test_ast_step0.json')
     _ensure_initial_ast(input_file, current_ast_path, solc_version="0.8.30")
     step_counter = 0
+    static_only = os.getenv("BIAN_STATIC_ONLY", "0") == "1"
 
     # Helper function for progressive transformation
     def next_step(source_code: str, step_name: str):
@@ -108,7 +111,27 @@ def run_demo(input_file: str, output_file: str):
         
         return current_ast_path
 
-    # Step 0: Promote eligible local variables to state variables
+    
+    # Step 0: Opaque Predicates (Control Flow) - NOW FIRST
+    enable_cpm = os.getenv("BIAN_ENABLE_CPM", "1") == "1"
+    if static_only:
+        print("[INFO] Opaque Predicates skipped (static-only mode).")
+    elif not enable_cpm:
+        print("[INFO] Opaque Predicates disabled (set BIAN_ENABLE_CPM=1 to enable).")
+    else:
+        try:
+            inserter = OpaquePredicateInserter(solc_version="0.8.30")
+            cpm_code = inserter.insert_opaque_predicates(current_source)
+            if cpm_code != current_source:
+                current_source = cpm_code
+                current_ast_path = next_step(current_source, "opaque predicates")
+                print("[OK] Opaque Predicates insertion done.")
+            else:
+                print("[INFO] Opaque Predicates skipped (no injection points).")
+        except Exception as e:
+            print(f"[WARN] Opaque Predicates insertion failed: {e}")
+
+    # Step 1: Promote eligible local variables to state variables
     enable_local_state = os.getenv("BIAN_ENABLE_LOCAL_STATE", "1") == "1"
     if enable_local_state:
         try:
@@ -124,7 +147,7 @@ def run_demo(input_file: str, output_file: str):
     else:
         print("[INFO] Local-to-state promotion disabled (set BIAN_ENABLE_LOCAL_STATE=1 to enable).")
 
-    # Step 1: Static data obfuscation
+    # Step 2: Static data obfuscation
     enable_static = os.getenv("BIAN_ENABLE_STATIC", "1") == "1"
     if enable_static:
         try:
@@ -137,8 +160,8 @@ def run_demo(input_file: str, output_file: str):
     else:
         print("[INFO] Static data obfuscation skipped (set BIAN_ENABLE_STATIC=1 to enable).")
 
-    # Step 2: Boolean obfuscation (skip if static-only mode requested)
-    static_only = os.getenv("BIAN_STATIC_ONLY", "0") == "1"
+    # Step 3: Boolean obfuscation (skip if static-only mode requested)
+    # static_only defined at top
     if static_only:
         print("[INFO] Boolean obfuscation skipped (static-only mode).")
     else:
@@ -154,7 +177,7 @@ def run_demo(input_file: str, output_file: str):
         except Exception as e:
             print(f"[WARN] Boolean obfuscation failed: {e}")
 
-    # Step 3: Integer obfuscation (skip if static-only mode requested)
+    # Step 4: Integer obfuscation (skip if static-only mode requested)
     if static_only:
         print("[INFO] Integer obfuscation skipped (static-only mode).")
     else:
@@ -166,7 +189,7 @@ def run_demo(input_file: str, output_file: str):
         except Exception as e:
             print(f"[WARN] Integer obfuscation failed: {e}")
 
-    # Step 4: Scalar variable splitting (only when not in static-only mode)
+    # Step 5: Scalar variable splitting (only when not in static-only mode)
     enable_scalar = os.getenv("BIAN_ENABLE_SCALAR", "1") == "1"
     if static_only:
         print("[INFO] Scalar splitting skipped (static-only mode).")
@@ -184,11 +207,13 @@ def run_demo(input_file: str, output_file: str):
         except Exception as e:
             print(f"[WARN] Scalar splitting failed: {e}")
 
+    # Step 5: Opaque Predicates (Control Flow) - MOVED TO START
+
     if static_only:
         # Preserve original formatting: skip comment removal + layout passes
         print("[INFO] Static-only mode: skipped comment removal, formatting, renaming.")
     else:
-        # Step 5: Comment removal
+        # Step 6: Comment removal
         try:
             comment_removed = run_comment_removal(source_text=current_source)
             current_source = comment_removed
@@ -197,7 +222,7 @@ def run_demo(input_file: str, output_file: str):
         except Exception as e:
             print(f"[WARN] Comment removal failed: {e}")
 
-        # Step 6: Format scrambling
+        # Step 7: Format scrambling
         try:
             scrambled_code = scramble_format(
                 source=current_source,
@@ -211,7 +236,7 @@ def run_demo(input_file: str, output_file: str):
         except Exception as e:
             print(f"[WARN] Format scrambling failed: {e}")
 
-        # Step 7: Variable renaming (uses fresh AST)
+        # Step 8: Variable renaming (uses fresh AST)
         try:
             renamer = VariableRenamer(
                 hash_algorithm='sha1',
