@@ -1,1 +1,4 @@
 # control-flow package
+from .opaque_predicate_obfuscator import OpaquePredicateInserter
+from .chaotic_map_generator import ChaoticMapGenerator
+from .flattening_obfuscator import FlatteningObfuscator
