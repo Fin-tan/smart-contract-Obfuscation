@@ -112,7 +112,29 @@ def run_demo(input_file: str, output_file: str):
         return current_ast_path
 
     
-    # Step 0: Opaque Predicates (Control Flow)
+    
+    # Step 0: Pre-processing (Modifier & Internal Function Inlining)
+    enable_preprocessing = os.getenv("BIAN_ENABLE_PREPROCESSING", "1") == "1"
+    if static_only:
+        print("[INFO] Pre-processing skipped (static-only mode).")
+    elif not enable_preprocessing:
+        print("[INFO] Pre-processing disabled.")
+    else:
+        try:
+            print("[INFO] Running Pre-processing (Inlining)...")
+            from preprocessing_obfuscator import PreprocessingObfuscator
+            preprocessor = PreprocessingObfuscator(solc_version="0.8.30")
+            
+            # Apply Modifier & Function Inlining
+            current_source = preprocessor.apply_preprocessing(current_source)
+            current_ast_path = next_step(current_source, "preprocessing")
+            print("[OK] Pre-processing done.")
+        except Exception as e:
+            print(f"[WARN] Pre-processing failed: {e}")
+            import traceback
+            traceback.print_exc()
+
+    # Step 1: Opaque Predicates (Control Flow)
     enable_cpm = os.getenv("BIAN_ENABLE_CPM", "1") == "1"
     if static_only:
         print("[INFO] Opaque Predicates skipped (static-only mode).")
@@ -131,7 +153,7 @@ def run_demo(input_file: str, output_file: str):
         except Exception as e:
             print(f"[WARN] Opaque Predicates insertion failed: {e}")
 
-    # Step 1: Control Flow Flattening
+    # Step 2: Control Flow Flattening
     print(f"[INFO] Running Control Flow Flattening...")
     # enable_flattening = os.getenv("BIAN_ENABLE_FLATTENING", "1") == "1"
     if not static_only:
@@ -151,7 +173,7 @@ def run_demo(input_file: str, output_file: str):
             import traceback
             traceback.print_exc()
 
-    # Step 2: Promote eligible local variables to state variables
+    # Step 3: Local-to-state promotion
     enable_local_state = os.getenv("BIAN_ENABLE_LOCAL_STATE", "1") == "1"
     if enable_local_state:
         try:
@@ -167,7 +189,7 @@ def run_demo(input_file: str, output_file: str):
     else:
         print("[INFO] Local-to-state promotion disabled (set BIAN_ENABLE_LOCAL_STATE=1 to enable).")
 
-    # Step 3: Static data obfuscation
+    # Step 4: Static data obfuscation
     enable_static = os.getenv("BIAN_ENABLE_STATIC", "1") == "1"
     if enable_static:
         try:
@@ -180,7 +202,7 @@ def run_demo(input_file: str, output_file: str):
     else:
         print("[INFO] Static data obfuscation skipped (set BIAN_ENABLE_STATIC=1 to enable).")
 
-    # Step 4: Boolean obfuscation
+    # Step 5: Boolean obfuscation
     if static_only:
         print("[INFO] Boolean obfuscation skipped (static-only mode).")
     else:
@@ -196,7 +218,7 @@ def run_demo(input_file: str, output_file: str):
         except Exception as e:
             print(f"[WARN] Boolean obfuscation failed: {e}")
 
-    # Step 5: Integer obfuscation
+    # Step 6: Integer obfuscation
     if static_only:
         print("[INFO] Integer obfuscation skipped (static-only mode).")
     else:
@@ -208,7 +230,7 @@ def run_demo(input_file: str, output_file: str):
         except Exception as e:
             print(f"[WARN] Integer obfuscation failed: {e}")
 
-    # Step 6: Scalar variable splitting
+    # Step 7: Scalar variable splitting
     enable_scalar = os.getenv("BIAN_ENABLE_SCALAR", "1") == "1"
     if static_only:
         print("[INFO] Scalar splitting skipped (static-only mode).")
@@ -230,7 +252,7 @@ def run_demo(input_file: str, output_file: str):
         # Preserve original formatting: skip comment removal + layout passes
         print("[INFO] Static-only mode: skipped comment removal, formatting, renaming.")
     else:
-        # Step 7: Comment removal
+        # Step 8: Comment removal
         try:
             comment_removed = run_comment_removal(source_text=current_source)
             current_source = comment_removed
@@ -239,7 +261,7 @@ def run_demo(input_file: str, output_file: str):
         except Exception as e:
             print(f"[WARN] Comment removal failed: {e}")
 
-        # Step 8: Format scrambling
+        # Step 9: Format scrambling
         try:
             scrambled_code = scramble_format(
                 source=current_source,
@@ -253,7 +275,7 @@ def run_demo(input_file: str, output_file: str):
         except Exception as e:
             print(f"[WARN] Format scrambling failed: {e}")
 
-        # Step 9: Variable renaming (uses fresh AST)
+        # Step 10: Variable renaming (uses fresh AST)
         try:
             renamer = VariableRenamer(
                 hash_algorithm='sha1',
