@@ -273,18 +273,19 @@ function OX8f2a(uint OXb1) {
 Dự án thực hiện các bước trên một cách tuần tự và nghiêm ngặt. Sau mỗi bước biến đổi, hệ thống sẽ tái tạo AST ngay lập tức để đảm bảo tính nhất quán cho bước tiếp theo.
 
 ```mermaid
-    Input(Source Code) --> P(Preprocessing)
-    P --> C1(Opaque Predicates)
-    C1 --> C2(Control Flow Flattening)
-    C2 --> D1(Local-to-State Promotion)
-    D1 --> D2(Static Data Obfuscation)
-    D2 --> D3(Boolean Obfuscation)
-    D3 --> D4(Integer Obfuscation)
-    D4 --> D5(Scalar Splitting)
-    D5 --> L1(Comment Removal)
-    L1 --> L2(Format Scrambling)
-    L2 --> L3(Variable Renaming)
-    L3 --> Output(Obfuscated Code)
+graph TD;
+    Input[Source Code] --> P[Preprocessing];
+    P --> C1[Opaque Predicates];
+    C1 --> C2[Control Flow Flattening];
+    C2 --> D1[Local-to-State Promotion];
+    D1 --> D2[Static Data Obfuscation];
+    D2 --> D3[Boolean Obfuscation];
+    D3 --> D4[Integer Obfuscation];
+    D4 --> D5[Scalar Splitting];
+    D5 --> L1[Comment Removal];
+    L1 --> L2[Format Scrambling];
+    L2 --> L3[Variable Renaming];
+    L3 --> Output[Obfuscated Code];
 ```
 
 ---
