@@ -43,7 +43,7 @@ function adminFunc() onlyOwner {
 
 > **Sau**
 ```solidity
-// Modifier bị xóa bỏ hoàn toàn khỏi kiến trúc
+// Modifier không còn được sử dụng
 function adminFunc() {
     // Logic được nhúng thẳng vào luồng chính
     require(msg.sender == owner);
