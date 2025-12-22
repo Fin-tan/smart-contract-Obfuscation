@@ -151,6 +151,15 @@ class FlatteningObfuscator:
         start, end = self._parse_src(src)
         return source_bytes[start:end].decode('utf-8')
 
+    def _get_default_value_for_type(self, type_str: str) -> str:
+        t = type_str.strip()
+        if t.startswith('bool'): return 'false'
+        if t.startswith('string'): return '""'
+        if t.startswith('bytes'): return '""'
+        if t.startswith('address'): return 'address(0)'
+        # For ints/uints or anything else, default to 0
+        return '0'
+
     def _create_basic_blocks(self, statements: list, source_bytes: bytes) -> Tuple[List[Dict], List[str]]:
         """
         Splits a list of AST statements into a CFG-like structure.
@@ -273,8 +282,19 @@ class FlatteningObfuscator:
                     rhs_text = self._extract_text(init_val, source_bytes)
                     current_block_content.append(f"{lhs} = {rhs_text};")
                 else:
-                    # No init value, effectively empty statement after hoisting
-                    pass
+                    # No init value (e.g., "uint a;").
+                    # Crucial: Since we hoist declarations to the top, we extend their scope.
+                    # To preserve semantics (especially inside loops), we MUST reset them 
+                    # to their default values in place!
+                    for i, decl in enumerate(decls):
+                        if not decl: continue
+                        var_name = decl.get('name')
+                        type_name_node = decl.get('typeName')
+                        if type_name_node:
+                            t_text = self._extract_text(type_name_node, source_bytes)
+                            default_val = self._get_default_value_for_type(t_text)
+                            current_block_content.append(f"{var_name} = {default_val};")
+
  
             else:
                 # Linear statement

@@ -145,6 +145,15 @@ def _collect_contract_infos(node, source_bytes: bytes, out: Dict[int, ContractIn
             _collect_contract_infos(element, source_bytes, out)
 
 
+def _get_default_value(type_str: str) -> str:
+    if type_str.startswith('bool'): return 'false'
+    if type_str.startswith('string'): return '""'
+    if type_str.startswith('bytes'): return '""'
+    if type_str.startswith('address'): return 'address(0)'
+    # ints/uints
+    return '0'
+
+
 def _traverse(node, contract_stack: List[ContractInfo], local_infos: Dict[int, LocalVarInfo],
               source_bytes: bytes, function_skip_stack: List[bool],
               contract_lookup: Dict[int, ContractInfo]) -> None:
@@ -185,9 +194,10 @@ def _traverse(node, contract_stack: List[ContractInfo], local_infos: Dict[int, L
                 return
             if not declaration.get('name'):
                 return
+            
             initial = node.get('initialValue')
-            if not initial:
-                return
+            # ALLOW missing initial value now (for hoisted vars)
+            
             type_string = (declaration.get('typeDescriptions') or {}).get('typeString')
             var_type = _sanitize_type(type_string)
             if not var_type:
@@ -198,9 +208,14 @@ def _traverse(node, contract_stack: List[ContractInfo], local_infos: Dict[int, L
             try:
                 stmt_start, stmt_end = _parse_src_range(node['src'])
                 stmt_end = _extend_statement_end(source_bytes, stmt_start, stmt_end)
-                init_range = _parse_src_range(initial['src'])
+                if initial:
+                    init_start, init_end = _parse_src_range(initial['src'])
+                    init_range = (init_start, init_end)
+                else:
+                    init_range = None
             except Exception:
                 return
+            
             sanitized_name = _sanitize_identifier(declaration['name'])
             global_name = f"__state_{sanitized_name}_{contract_stack[-1].counter}"
             contract_stack[-1].counter += 1
@@ -223,6 +238,7 @@ def _traverse(node, contract_stack: List[ContractInfo], local_infos: Dict[int, L
     elif isinstance(node, list):
         for element in node:
             _traverse(element, contract_stack, local_infos, source_bytes, function_skip_stack, contract_lookup)
+
 
 
 def _collect_identifier_occurrences(node, target_ids: Dict[int, LocalVarInfo], occurrences: List[Tuple[int, int, str]],
@@ -283,15 +299,26 @@ def convert_locals_to_state(source_text: str, ast_json_path: Optional[str] = Non
     replacements: List[Tuple[int, int, bytes]] = []
     for info in local_infos.values():
         start, end = info.statement_range
-        init_start, init_end = info.init_range
+        
+        if info.init_range:
+            init_start, init_end = info.init_range
+            init_expr = source_bytes[init_start:init_end].decode('utf-8').strip()
+        else:
+            # Generate default value
+            init_expr = _get_default_value(info.var_type)
+        
         stmt_bytes = source_bytes[start:end]
-        init_expr = source_bytes[init_start:init_end].decode('utf-8').strip()
         stmt_text = stmt_bytes.decode('utf-8')
         leading_ws = re.match(r'\s*', stmt_text).group(0)
+        
+        # Look for trailing parts (comments, etc) after semicolon if present
         semicolon_idx = stmt_text.find(';')
         if semicolon_idx == -1:
             semicolon_idx = len(stmt_text)
-        after_semicolon = stmt_text[semicolon_idx+1:]
+            after_semicolon = ""
+        else:
+            after_semicolon = stmt_text[semicolon_idx+1:]
+        
         new_stmt = f"{leading_ws}{info.global_name} = {init_expr};{after_semicolon}"
         replacements.append((start, end, new_stmt.encode('utf-8')))
 
