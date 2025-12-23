@@ -193,23 +193,30 @@ uint x = ((5 + 7) - 2);
 
 #### Scalar Variable Splitting
 *   **Khái niệm**: *Homomorphic-like Encoding*.
-*   **Cơ chế**: Không lưu trữ trực tiếp giá trị biến. Biến `x` được tách thành `x1` và `x2` sao cho `x = x1 ^ x2`. `x1` đóng vai trò là vector nhiễu ngẫu nhiên.
-*   **Hiệu quả**: Mã hóa dữ liệu ngay cả khi đang lưu trữ on-chain. Kẻ tấn công đọc trực tiếp Storage Slot cũng chỉ nhận được dữ liệu rác nếu không biết logic tái hợp.
+*   **Cơ chế**: Thay vì để các biến trạng thái nằm rải rác, hệ thống gom chúng vào một `struct` duy nhất. Tên của các biến thành viên được thay thế bằng mã băm SHA-1.
+*   **Hiệu quả**: Thay đổi hoàn toàn layout lưu trữ của Contract. Mọi truy xuất biến giờ đây phải đi qua struct, làm rối luồng dữ liệu và che giấu tên biến gốc bằng các mã băm vô nghĩa.
 
 > **Trước**
 ```solidity
 uint256 private salary = 5000;
-function setSalary(uint v) { salary = v; }
+address public owner;
+
+function setSalary(uint v) { 
+    salary = v; 
+}
 ```
 
 > **Sau**
 ```solidity
-uint256[2] private __scalar_salary; // Mảng 2 phần tử
+struct __BiAnScalars {
+    uint256 m_f14a46...; // salary (hash mapping)
+    address m_579233...; // owner
+}
+__BiAnScalars private __scalar_vectors;
 
 function setSalary(uint v) {
-    uint noise = keccak256(...); // Sinh noise ngẫu nhiên
-    __scalar_salary[0] = noise;
-    __scalar_salary[1] = noise ^ v; // XOR để mã hóa
+    // Truy xuất thông qua cấu trúc mới
+    __scalar_vectors.m_f14a46... = v;
 }
 ```
 
