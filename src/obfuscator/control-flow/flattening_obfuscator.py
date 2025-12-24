@@ -54,6 +54,14 @@ class FlatteningObfuscator:
         length = int(parts[1])
         return start, start + length
 
+    def obfuscate(self, source_code: str, ast_path: str = None) -> Tuple[str, int]:
+        """
+        Unified interface for demo.py
+        """
+        new_source = self.flatten_control_flow(source_code)
+        count = 1 if new_source != source_code else 0
+        return new_source, count
+
     def flatten_control_flow(self, source_code: str) -> str:
         ast = self._get_ast(source_code)
         if not ast:

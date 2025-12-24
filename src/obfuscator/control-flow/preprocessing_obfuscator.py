@@ -14,6 +14,8 @@ try:
 except ImportError:
     pass
 
+DEFAULT_SOLC_VERSION = "0.8.30"
+
 class PreprocessingObfuscator:
     def __init__(self, solc_version="0.8.30"):
         self.solc_version = solc_version
@@ -60,6 +62,17 @@ class PreprocessingObfuscator:
         if not src: return ""
         start, end = self._parse_src(src)
         return source_bytes[start:end].decode('utf-8')
+
+    def obfuscate(self, source_code: str, ast_path: str = None) -> Tuple[str, int]:
+        """
+        Unified interface for demo.py
+        Returns: (obfuscated_source, change_count)
+        """
+        # We don't track exact count of inlinings easily without refactoring, 
+        # so we return 1 if changed, 0 otherwise for now.
+        new_source = self.apply_preprocessing(source_code)
+        count = 1 if new_source != source_code else 0
+        return new_source, count
 
     def apply_preprocessing(self, source_code: str) -> str:
         """

@@ -129,6 +129,14 @@ class OpaquePredicateInserter:
         except:
             return None
 
+    def obfuscate(self, source_code: str, ast_path: str = None) -> Tuple[str, int]:
+        """
+        Unified interface for demo.py
+        """
+        new_source = self.insert_opaque_predicates(source_code)
+        count = 1 if new_source != source_code else 0
+        return new_source, count
+
     def insert_opaque_predicates(self, source_code: str, file_path_hint: str = None) -> str:
         """
         Injects Opaque Predicates into the source code.

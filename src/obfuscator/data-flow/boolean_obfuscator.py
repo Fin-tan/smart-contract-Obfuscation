@@ -20,7 +20,7 @@ try:
 except Exception:
     solcx = None
 
-DEFAULT_SOLC_VERSION = "0.8.30"
+DEFAULT_SOLC_VERSION = "0.8.30" # This is just a backup default
 
 def _make_true_variant() -> str:
     """

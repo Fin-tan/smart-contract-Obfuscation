@@ -6,6 +6,9 @@ Smart Contract Comment Obfuscation Demo
 
 import os
 import sys
+import re
+import shutil
+import glob
 
 
 # Add the src directory to Python path
@@ -30,7 +33,37 @@ from local_state_obfuscator import convert_locals_to_state
 from opaque_predicate_obfuscator import OpaquePredicateInserter
 
 # BiAn-style AST regeneration: create fresh AST from current source after each transformation
-def _regenerate_ast_from_source(source_code: str, source_file_path: str, ast_output_path: str, solc_version: str = "0.8.30") -> bool:
+
+def _detect_solc_version(source_code: str) -> str:
+    """
+    Detects the solidity version from the source code pragma.
+    Defaults to '0.8.30' if not found or complex range.
+    """
+    # Simple regex to find "pragma solidity ^0.8.0;" or "pragma solidity 0.8.30;"
+    # We will try to extract the first semver-like string.
+    # Supported formats:
+    # pragma solidity 0.8.30;
+    # pragma solidity ^0.8.30;
+    # pragma solidity >=0.4.22 <0.9.0; -> We just pick the first one 0.4.22? No, that might be too old.
+    # Let's look for the first concrete X.Y.Z
+    
+    match = re.search(r'pragma\s+solidity\s+([^;]+);', source_code)
+    if match:
+        version_str = match.group(1).strip()
+        # Remove caret or other simple prefixes
+        clean_ver = re.sub(r'[\^>=<]', '', version_str).split()[0] # Take first part if range
+        
+        # Validate if it looks like a version
+        if re.match(r'^\d+\.\d+\.\d+$', clean_ver):
+            print(f"[INFO] Detected Solidity version: {clean_ver}")
+            return clean_ver
+            
+    print(f"[WARN] Could not auto-detect version from pragma. Defaulting to 0.8.30")
+    return "0.8.30"
+
+
+def _regenerate_ast_from_source(source_code: str, source_file_path: str, ast_output_path: str, solc_version: str) -> bool:
+
     """
     Regenerate AST from current source code (BiAn approach).
     Write source to temp file, compile to get fresh AST, save AST to output path.
@@ -38,9 +71,13 @@ def _regenerate_ast_from_source(source_code: str, source_file_path: str, ast_out
     """
     try:
         # Lazy import to avoid hard dependency
-        from solcx import install_solc, set_solc_version, compile_standard
-        install_solc(solc_version)
-        set_solc_version(solc_version)
+        from solcx import install_solc, set_solc_version, compile_standard, compile_files, get_installed_solc_versions # Added compile_files, get_installed_solc_versions
+        # Ensure specific version is installed
+        try:
+            install_solc(solc_version)
+            set_solc_version(solc_version)
+        except Exception as e:
+            print(f"[WARN] Failed to install/set solc version {solc_version}: {e}")
         
         # Write current source to snapshot file for this step
         os.makedirs(os.path.dirname(source_file_path), exist_ok=True)
@@ -68,7 +105,7 @@ def _regenerate_ast_from_source(source_code: str, source_file_path: str, ast_out
         return False
 
 # Initial AST generation (for first step only)
-def _ensure_initial_ast(sol_file: str, out_json: str, solc_version: str = "0.8.30") -> None:
+def _ensure_initial_ast(sol_file: str, out_json: str, solc_version: str) -> None:
     with open(sol_file, "r", encoding="utf-8") as f:
         source = f.read()
 
@@ -87,9 +124,29 @@ def run_demo(input_file: str, output_file: str):
 
     print("[INFO] Starting BiAn-style progressive obfuscation pipeline...")
     
-    # Initialize AST for first step
+    # Initialize AST
+    # Detect version first
+    with open(input_file, 'r', encoding='utf-8') as f:
+        initial_source = f.read()
+    
+    detected_version = _detect_solc_version(initial_source)
+    
+    # Pre-install to avoid delays later
+    try:
+        from solcx import install_solc, set_solc_version
+        install_solc(detected_version)
+        set_solc_version(detected_version)
+    except Exception as e:
+        print(f"[ERROR] Failed to install/set solc version {detected_version}: {e}")
+        return
+
+    print(f"[INFO] Using Solidity Version: {detected_version}")
+
+    # Generate initial AST
     current_ast_path = os.path.join('test', 'test_ast_step0.json')
-    _ensure_initial_ast(input_file, current_ast_path, solc_version="0.8.30")
+    print(f"[INFO] Generating initial AST for {input_file}...")
+    _ensure_initial_ast(input_file, current_ast_path, solc_version=detected_version)
+
     step_counter = 0
     static_only = os.getenv("BIAN_STATIC_ONLY", "0") == "1"
 
@@ -103,7 +160,7 @@ def run_demo(input_file: str, output_file: str):
         new_ast_path = os.path.join('test', f'test_ast_step{step_counter}.json')
         
         # Regenerate AST from current source (BiAn approach)
-        if _regenerate_ast_from_source(source_code, step_source_path, new_ast_path):
+        if _regenerate_ast_from_source(source_code, step_source_path, new_ast_path, solc_version=detected_version):
             print(f"[AST] Regenerated AST after {step_name} -> {new_ast_path}")
             current_ast_path = new_ast_path
         else:
@@ -123,10 +180,10 @@ def run_demo(input_file: str, output_file: str):
         try:
             print("[INFO] Running Pre-processing (Inlining)...")
             from preprocessing_obfuscator import PreprocessingObfuscator
-            preprocessor = PreprocessingObfuscator(solc_version="0.8.30")
+            preprocessor = PreprocessingObfuscator(solc_version=detected_version)
             
             # Apply Modifier & Function Inlining
-            current_source = preprocessor.apply_preprocessing(current_source)
+            current_source, count = preprocessor.obfuscate(current_source, current_ast_path)
             current_ast_path = next_step(current_source, "preprocessing")
             print("[OK] Pre-processing done.")
         except Exception as e:
@@ -142,9 +199,9 @@ def run_demo(input_file: str, output_file: str):
         print("[INFO] Opaque Predicates disabled (set BIAN_ENABLE_CPM=1 to enable).")
     else:
         try:
-            inserter = OpaquePredicateInserter(solc_version="0.8.30")
-            cpm_code = inserter.insert_opaque_predicates(current_source)
-            if cpm_code != current_source:
+            inserter = OpaquePredicateInserter(solc_version=detected_version)
+            cpm_code, count = inserter.obfuscate(current_source, current_ast_path)
+            if count > 0:
                 current_source = cpm_code
                 current_ast_path = next_step(current_source, "opaque predicates")
                 print("[OK] Opaque Predicates insertion done.")
@@ -159,10 +216,10 @@ def run_demo(input_file: str, output_file: str):
     if not static_only:
         try:
             from flattening_obfuscator import FlatteningObfuscator
-            flattener = FlatteningObfuscator(solc_version="0.8.30")
-            flattened_code = flattener.flatten_control_flow(current_source)
+            flattener = FlatteningObfuscator(solc_version=detected_version)
+            flattened_code, count = flattener.obfuscate(current_source, current_ast_path)
             
-            if flattened_code != current_source:
+            if count > 0:
                 current_source = flattened_code
                 current_ast_path = next_step(current_source, "control flow flattening")
                 print("[OK] Control Flow Flattening done.")
@@ -210,7 +267,11 @@ def run_demo(input_file: str, output_file: str):
             boolean_obfuscated, ops = split_booleans_from_source(
                 source_text=current_source,
                 file_path_hint=None,
-                solc_version="0.8.30"
+        # Scalar Splitter now uses AST from JSON, but might need AST regeneration logic in future
+        # Currently scalar_splitter does not take Solc Version as init, but `split_scalar_variables` just takes AST path.
+        # But wait, scalar splitter relies on existing AST. We already handle AST regen in `next_step` using `detect_version`.
+        # So scalar splitter logic itself is fine as long as AST is valid.
+
             )
             current_source = boolean_obfuscated
             current_ast_path = next_step(current_source, "boolean obfuscation")
@@ -262,18 +323,22 @@ def run_demo(input_file: str, output_file: str):
             print(f"[WARN] Comment removal failed: {e}")
 
         # Step 9: Format scrambling
-        try:
-            scrambled_code = scramble_format(
-                source=current_source,
-                solidity_version="^0.8.30",
-                remove_comments=True,
+        enable_formatting = os.getenv("BIAN_ENABLE_FORMATTING", "1") == "1"
+        if enable_formatting and not static_only:
+             # Pass detected version to formatter
+             print(f"[INFO] Scrambling format...")
+             from format_scrambler import scramble_format
+             scrambled_code = scramble_format(
+                current_source, 
+                solidity_version=f"^{detected_version}", # Use caret for standard
+                remove_comments=False, 
                 one_line=True
             )
-            current_source = scrambled_code
-            current_ast_path = next_step(current_source, "format scrambling")
-            print("[OK] Format scrambling done.")
-        except Exception as e:
-            print(f"[WARN] Format scrambling failed: {e}")
+             current_source = scrambled_code
+             current_ast_path = next_step(current_source, "format scrambling")
+             print("[OK] Format scrambling done.")
+        else:
+            print("[INFO] Format scrambling disabled (set BIAN_ENABLE_FORMATTING=1 to enable).")
 
         # Step 10: Variable renaming (uses fresh AST)
         try:

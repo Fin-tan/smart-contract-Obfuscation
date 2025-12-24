@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.30;
+pragma solidity ^0.5.16;
 
 contract HelloWorld {
     address public owner;
 
-    constructor() {
+    constructor() public {
         owner = msg.sender;
     }
 
